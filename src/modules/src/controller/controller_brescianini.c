@@ -47,7 +47,6 @@ static struct mat33 CRAZYFLIE_INERTIA =
       {0.83e-6f, 16.6e-6f, 1.8e-6f},
       {0.72e-6f, 1.8e-6f, 29.3e-6f}}};
 
-
 // tau is a time constant, lower -> more aggressive control (weight on position error)
 // zeta is a damping factor, higher -> more damping (weight on velocity error)
 
@@ -80,27 +79,27 @@ static float omega_yaw_max = 10;
 static float heuristic_rp = 12;
 static float heuristic_yaw = 5;
 
-
 // Struct for logging position information
 static bool isInit = false;
 
-void controllerBrescianiniInit(void) {
-  if (isInit) {
+void controllerBrescianiniInit(void)
+{
+  if (isInit)
+  {
     return;
   }
 
   isInit = true;
 }
 
-
 #define UPDATE_RATE RATE_100_HZ
 
-
 void controllerBrescianini(control_t *control,
-                                 const setpoint_t *setpoint,
-                                 const sensorData_t *sensors,
-                                 const state_t *state,
-                                 const stabilizerStep_t stabilizerStep) {
+                           const setpoint_t *setpoint,
+                           const sensorData_t *sensors,
+                           const state_t *state,
+                           const stabilizerStep_t stabilizerStep)
+{
 
   static float control_omega[3];
   static struct vec control_torque;
@@ -112,7 +111,8 @@ void controllerBrescianini(control_t *control,
   omega[1] = radians(sensors->gyro.y);
   omega[2] = radians(sensors->gyro.z);
 
-  if (RATE_DO_EXECUTE(UPDATE_RATE, stabilizerStep)) {
+  if (RATE_DO_EXECUTE(UPDATE_RATE, stabilizerStep))
+  {
     // desired accelerations
     struct vec accDes = vzero();
     // desired thrust
@@ -129,10 +129,10 @@ void controllerBrescianini(control_t *control,
 
     // current attitude
     struct quat attitude = mkquat(
-      state->attitudeQuaternion.x,
-      state->attitudeQuaternion.y,
-      state->attitudeQuaternion.z,
-      state->attitudeQuaternion.w);
+        state->attitudeQuaternion.x,
+        state->attitudeQuaternion.y,
+        state->attitudeQuaternion.z,
+        state->attitudeQuaternion.w);
 
     // inverse of current attitude
     struct quat attitudeI = qinv(attitude);
@@ -171,7 +171,6 @@ void controllerBrescianini(control_t *control,
                               setpoint->velocity.y - state->velocity.y,
                               setpoint->velocity.z - state->velocity.z);
 
-
     // ====== LINEAR CONTROL ======
 
     // compute desired accelerations in X, Y and Z
@@ -193,13 +192,13 @@ void controllerBrescianini(control_t *control,
     accDes.z += setpoint->acceleration.z;
     accDes.z = constrain(accDes.z, -coll_max, coll_max);
 
-
     // ====== THRUST CONTROL ======
 
     // compute commanded thrust required to achieve the z acceleration
     collCmd = accDes.z / R22;
 
-    if (fabsf(collCmd) > coll_max) {
+    if (fabsf(collCmd) > coll_max)
+    {
       // exceeding the thrust threshold
       // we compute a reduction factor r based on fairness f \in [0,1] such that:
       // collMax^2 = (r*x)^2 + (r*y)^2 + (r*f*z + (1-f)z + g)^2
@@ -212,23 +211,32 @@ void controllerBrescianini(control_t *control,
       float r = 0;
 
       // solve as a quadratic
-      float a = powf(x, 2) + powf(y, 2) + powf(z*f, 2);
-      if (a<0) { a = 0; }
-
-      float b = 2 * z*f*((1-f)*z + g);
-      float c = powf(coll_max, 2) - powf((1-f)*z + g, 2);
-      if (c<0) { c = 0; }
-
-      if (fabsf(a)<1e-6f) {
-        r = 0;
-      } else {
-        float sqrtterm = powf(b, 2) + 4.0f*a*c;
-        r = (-b + sqrtf(sqrtterm))/(2.0f*a);
-        r = constrain(r,0,1);
+      float a = powf(x, 2) + powf(y, 2) + powf(z * f, 2);
+      if (a < 0)
+      {
+        a = 0;
       }
-      accDes.x = r*x;
-      accDes.y = r*y;
-      accDes.z = (r*f+(1-f))*z + g;
+
+      float b = 2 * z * f * ((1 - f) * z + g);
+      float c = powf(coll_max, 2) - powf((1 - f) * z + g, 2);
+      if (c < 0)
+      {
+        c = 0;
+      }
+
+      if (fabsf(a) < 1e-6f)
+      {
+        r = 0;
+      }
+      else
+      {
+        float sqrtterm = powf(b, 2) + 4.0f * a * c;
+        r = (-b + sqrtf(sqrtterm)) / (2.0f * a);
+        r = constrain(r, 0, 1);
+      }
+      accDes.x = r * x;
+      accDes.y = r * y;
+      accDes.z = (r * f + (1 - f)) * z + g;
     }
     collCmd = constrain(accDes.z / R22, coll_min, coll_max);
 
@@ -245,8 +253,6 @@ void controllerBrescianini(control_t *control,
     // a unit vector pointing in the direction of the inertial frame z-axis
     struct vec zI = mkvec(0, 0, 1);
 
-
-
     // ====== REDUCED ATTITUDE CONTROL ======
 
     // compute the error angle between the current and the desired thrust directions
@@ -256,9 +262,12 @@ void controllerBrescianini(control_t *control,
 
     // the axis around which this rotation needs to occur in the inertial frame (ie. an axis orthogonal to the two)
     struct vec rotAxisI = vzero();
-    if (fabsf(alpha) > 1 * ARCMINUTE) {
+    if (fabsf(alpha) > 1 * ARCMINUTE)
+    {
       rotAxisI = vnormalize(vcross(zI_cur, zI_des));
-    } else {
+    }
+    else
+    {
       rotAxisI = mkvec(1, 1, 0);
     }
 
@@ -269,16 +278,17 @@ void controllerBrescianini(control_t *control,
     attErrorReduced.z = sinf(alpha / 2.0f) * rotAxisI.z;
 
     // choose the shorter rotation
-    if (sinf(alpha / 2.0f) < 0) {
+    if (sinf(alpha / 2.0f) < 0)
+    {
       rotAxisI = vneg(rotAxisI);
     }
-    if (cosf(alpha / 2.0f) < 0) {
+    if (cosf(alpha / 2.0f) < 0)
+    {
       rotAxisI = vneg(rotAxisI);
       attErrorReduced = qneg(attErrorReduced);
     }
 
     attErrorReduced = qnormalize(attErrorReduced);
-
 
     // ====== FULL ATTITUDE CONTROL ======
 
@@ -288,9 +298,12 @@ void controllerBrescianini(control_t *control,
     alpha = acosf(dotProd);
 
     // the axis around which this rotation needs to occur in the inertial frame (ie. an axis orthogonal to the two)
-    if (fabsf(alpha) > 1 * ARCMINUTE) {
+    if (fabsf(alpha) > 1 * ARCMINUTE)
+    {
       rotAxisI = vnormalize(vcross(zI, zI_des));
-    } else {
+    }
+    else
+    {
       rotAxisI = mkvec(1, 1, 0);
     }
 
@@ -310,7 +323,8 @@ void controllerBrescianini(control_t *control,
     attErrorFull = qqmul(attitudeI, attDesiredFull);
 
     // correct rotation
-    if (attErrorFull.w < 0) {
+    if (attErrorFull.w < 0)
+    {
       attErrorFull = qneg(attErrorFull);
       attDesiredFull = qqmul(attitude, attErrorFull);
     }
@@ -318,18 +332,22 @@ void controllerBrescianini(control_t *control,
     attErrorFull = qnormalize(attErrorFull);
     attDesiredFull = qnormalize(attDesiredFull);
 
-
     // ====== MIXING FULL & REDUCED CONTROL ======
 
     struct quat attError = qeye();
 
-    if (mixing_factor <= 0) {
+    if (mixing_factor <= 0)
+    {
       // 100% reduced control (no yaw control)
       attError = attErrorReduced;
-    } else if (mixing_factor >= 1) {
+    }
+    else if (mixing_factor >= 1)
+    {
       // 100% full control (yaw controlled with same time constant as roll & pitch)
       attError = attErrorFull;
-    } else {
+    }
+    else
+    {
       // mixture of reduced and full control
 
       // calculate rotation between the two errors
@@ -342,9 +360,9 @@ void controllerBrescianini(control_t *control,
 
       // bisect the rotation from reduced to full control
       temp1 = mkquat(0,
-                       0,
-                       sinf(alpha * mixing_factor / 2.0f) * (temp2.z < 0 ? -1 : 1), // rotate in the correct direction
-                       cosf(alpha * mixing_factor / 2.0f));
+                     0,
+                     sinf(alpha * mixing_factor / 2.0f) * (temp2.z < 0 ? -1 : 1), // rotate in the correct direction
+                     cosf(alpha * mixing_factor / 2.0f));
 
       attError = qnormalize(qqmul(attErrorReduced, temp1));
     }
@@ -357,15 +375,18 @@ void controllerBrescianini(control_t *control,
     control_omega[2] = 2.0f / tau_rp * attError.z + radians(setpoint->attitudeRate.yaw); // due to the mixing, this will behave with time constant tau_yaw
 
     // apply the rotation heuristic
-    if (control_omega[0] * omega[0] < 0 && fabsf(omega[0]) > heuristic_rp) { // desired rotational rate in direction opposite to current rotational rate
+    if (control_omega[0] * omega[0] < 0 && fabsf(omega[0]) > heuristic_rp)
+    {                                                            // desired rotational rate in direction opposite to current rotational rate
       control_omega[0] = omega_rp_max * (omega[0] < 0 ? -1 : 1); // maximum rotational rate in direction of current rotation
     }
 
-    if (control_omega[1] * omega[1] < 0 && fabsf(omega[1]) > heuristic_rp) { // desired rotational rate in direction opposite to current rotational rate
+    if (control_omega[1] * omega[1] < 0 && fabsf(omega[1]) > heuristic_rp)
+    {                                                            // desired rotational rate in direction opposite to current rotational rate
       control_omega[1] = omega_rp_max * (omega[1] < 0 ? -1 : 1); // maximum rotational rate in direction of current rotation
     }
 
-    if (control_omega[2] * omega[2] < 0 && fabsf(omega[2]) > heuristic_yaw) { // desired rotational rate in direction opposite to current rotational rate
+    if (control_omega[2] * omega[2] < 0 && fabsf(omega[2]) > heuristic_yaw)
+    {                                                            // desired rotational rate in direction opposite to current rotational rate
       control_omega[2] = omega_rp_max * (omega[2] < 0 ? -1 : 1); // maximum rotational rate in direction of current rotation
     }
 
@@ -381,16 +402,19 @@ void controllerBrescianini(control_t *control,
     control_thrust = collCmd;
   }
 
-  if (setpoint->mode.z == modeDisable) {
+  if (setpoint->mode.z == modeDisable)
+  {
     control->thrustSi = 0.0f;
-    control->torque[0] =  0.0f;
-    control->torque[1] =  0.0f;
-    control->torque[2] =  0.0f;
-  } else {
+    control->torque[0] = 0.0f;
+    control->torque[1] = 0.0f;
+    control->torque[2] = 0.0f;
+  }
+  else
+  {
     // control the body torques
-    struct vec omegaErr = mkvec((control_omega[0] - omega[0])/tau_rp_rate,
-                        (control_omega[1] - omega[1])/tau_rp_rate,
-                        (control_omega[2] - omega[2])/tau_yaw_rate);
+    struct vec omegaErr = mkvec((control_omega[0] - omega[0]) / tau_rp_rate,
+                                (control_omega[1] - omega[1]) / tau_rp_rate,
+                                (control_omega[2] - omega[2]) / tau_yaw_rate);
 
     // update the commanded body torques based on the current error in body rates
     control_torque = mvmul(CRAZYFLIE_INERTIA, omegaErr);
@@ -404,10 +428,10 @@ void controllerBrescianini(control_t *control,
   control->controlMode = controlModeForceTorque;
 }
 
-bool controllerBrescianiniTest(void) {
+bool controllerBrescianiniTest(void)
+{
   return true;
 }
-
 
 PARAM_GROUP_START(ctrlAtt)
 PARAM_ADD(PARAM_FLOAT, tau_xy, &tau_xy)

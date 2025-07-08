@@ -30,7 +30,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-
 void attitudeControllerInit(const float updateDt);
 bool attitudeControllerTest(void);
 
@@ -41,17 +40,17 @@ bool attitudeControllerTest(void);
  * controller.
  */
 void attitudeControllerCorrectAttitudePID(
-       float eulerRollActual, float eulerPitchActual, float eulerYawActual,
-       float eulerRollDesired, float eulerPitchDesired, float eulerYawDesired,
-       float* rollRateDesired, float* pitchRateDesired, float* yawRateDesired);
+    float eulerRollActual, float eulerPitchActual, float eulerYawActual,
+    float eulerRollDesired, float eulerPitchDesired, float eulerYawDesired,
+    float *rollRateDesired, float *pitchRateDesired, float *yawRateDesired);
 
 /**
  * Make the controller run an update of the rate PID. The output is
  * the actuator force.
  */
 void attitudeControllerCorrectRatePID(
-       float rollRateActual, float pitchRateActual, float yawRateActual,
-       float rollRateDesired, float pitchRateDesired, float yawRateDesired);
+    float rollRateActual, float pitchRateActual, float yawRateActual,
+    float rollRateDesired, float pitchRateDesired, float yawRateDesired);
 
 /**
  * Reset controller roll attitude PID
@@ -71,12 +70,11 @@ void attitudeControllerResetAllPID(float rollActual, float pitchActual, float ya
 /**
  * Get the actuator output.
  */
-void attitudeControllerGetActuatorOutput(int16_t* roll, int16_t* pitch, int16_t* yaw);
+void attitudeControllerGetActuatorOutput(int16_t *roll, int16_t *pitch, int16_t *yaw);
 
 /**
  * Get yaw max delta
  */
 float attitudeControllerGetYawMaxDelta(void);
-
 
 #endif /* ATTITUDE_CONTROLLER_H_ */

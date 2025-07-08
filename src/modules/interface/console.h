@@ -76,6 +76,6 @@ void consoleFlush(void);
  * @param FMT String format
  * @param ... Parameters to print
  */
-#define consolePrintf(FMT, ...) eprintf(consolePutchar, FMT, ## __VA_ARGS__)
+#define consolePrintf(FMT, ...) eprintf(consolePutchar, FMT, ##__VA_ARGS__)
 
 #endif /*CONSOLE_H_*/

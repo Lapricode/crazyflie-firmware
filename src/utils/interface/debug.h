@@ -31,12 +31,12 @@
 #include "autoconf.h"
 
 #ifdef CONFIG_DEBUG_PRINT_ON_UART1
-  #include "uart1.h"
-  #define uartPrintf uart1Printf
+#include "uart1.h"
+#define uartPrintf uart1Printf
 #endif
 
 #ifdef DEBUG_PRINT_ON_SEGGER_RTT
-  #include "SEGGER_RTT.h"
+#include "SEGGER_RTT.h"
 #endif
 
 #ifdef DEBUG_MODULE
@@ -50,35 +50,41 @@
 void debugInit(void);
 
 #if defined(UNIT_TEST_MODE)
-  #include <stdio.h>
-  #define DEBUG_PRINT(fmt, ...) printf(DEBUG_FMT(fmt), ##__VA_ARGS__)
-  #define DEBUG_PRINT_OS(fmt, ...) printf(DEBUG_FMT(fmt), ##__VA_ARGS__)
+#include <stdio.h>
+#define DEBUG_PRINT(fmt, ...) printf(DEBUG_FMT(fmt), ##__VA_ARGS__)
+#define DEBUG_PRINT_OS(fmt, ...) printf(DEBUG_FMT(fmt), ##__VA_ARGS__)
 #elif defined(CONFIG_DEBUG_PRINT_ON_UART1)
-  #define DEBUG_PRINT(fmt, ...) uartPrintf(DEBUG_FMT(fmt), ##__VA_ARGS__)
-  #define DEBUG_PRINT_OS(fmt, ...) uartPrintf(DEBUG_FMT(fmt), ##__VA_ARGS__)
+#define DEBUG_PRINT(fmt, ...) uartPrintf(DEBUG_FMT(fmt), ##__VA_ARGS__)
+#define DEBUG_PRINT_OS(fmt, ...) uartPrintf(DEBUG_FMT(fmt), ##__VA_ARGS__)
 #elif defined(DEBUG_PRINT_ON_SWO)
-  #define DEBUG_PRINT(fmt, ...) eprintf(ITM_SendChar, fmt, ## __VA_ARGS__)
-  #define DEBUG_PRINT_OS(fmt, ...) eprintf(ITM_SendChar, fmt, ## __VA_ARGS__)
+#define DEBUG_PRINT(fmt, ...) eprintf(ITM_SendChar, fmt, ##__VA_ARGS__)
+#define DEBUG_PRINT_OS(fmt, ...) eprintf(ITM_SendChar, fmt, ##__VA_ARGS__)
 #elif defined(DEBUG_PRINT_ON_SEGGER_RTT)
-  #define DEBUG_PRINT(fmt, ...) SEGGER_RTT_printf(0, fmt, ## __VA_ARGS__)
-  #define DEBUG_PRINT_OS(fmt, ...) SEGGER_RTT_printf(0, fmt, ## __VA_ARGS__)
+#define DEBUG_PRINT(fmt, ...) SEGGER_RTT_printf(0, fmt, ##__VA_ARGS__)
+#define DEBUG_PRINT_OS(fmt, ...) SEGGER_RTT_printf(0, fmt, ##__VA_ARGS__)
 #else // Debug using radio or USB
-  #define DEBUG_PRINT(fmt, ...) consolePrintf(DEBUG_FMT(fmt), ##__VA_ARGS__)
-  #define DEBUG_PRINT_OS(fmt, ...) consolePrintf(DEBUG_FMT(fmt), ##__VA_ARGS__)
-  //#define DEBUG_PRINT(fmt, ...)
+#define DEBUG_PRINT(fmt, ...) consolePrintf(DEBUG_FMT(fmt), ##__VA_ARGS__)
+#define DEBUG_PRINT_OS(fmt, ...) consolePrintf(DEBUG_FMT(fmt), ##__VA_ARGS__)
+// #define DEBUG_PRINT(fmt, ...)
 #endif
 
 #ifndef PRINT_OS_DEBUG_INFO
-  #undef DEBUG_PRINT_OS
-  #define DEBUG_PRINT_OS(fmt, ...)
+#undef DEBUG_PRINT_OS
+#define DEBUG_PRINT_OS(fmt, ...)
 #endif
 
-
 #ifdef TEST_PRINTS
-  #define TEST_AND_PRINT(e, msgOK, msgFail)\
-    if(e) { DEBUG_PRINT(msgOK); } else { DEBUG_PRINT(msgFail); }
-  #define FAIL_PRINT(msg) DEBUG_PRINT(msg)
+#define TEST_AND_PRINT(e, msgOK, msgFail) \
+  if (e)                                  \
+  {                                       \
+    DEBUG_PRINT(msgOK);                   \
+  }                                       \
+  else                                    \
+  {                                       \
+    DEBUG_PRINT(msgFail);                 \
+  }
+#define FAIL_PRINT(msg) DEBUG_PRINT(msg)
 #else
-  #define TEST_AND_PRINT(e, msgOK, msgFail)
-  #define FAIL_PRINT(msg)
+#define TEST_AND_PRINT(e, msgOK, msgFail)
+#define FAIL_PRINT(msg)
 #endif

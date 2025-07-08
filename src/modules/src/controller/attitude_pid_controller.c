@@ -34,7 +34,6 @@
 #include "commander.h"
 #include "platform_defaults.h"
 
-
 static bool attFiltEnable = ATTITUDE_LPF_ENABLE;
 static bool rateFiltEnable = ATTITUDE_RATE_LPF_ENABLE;
 static float attFiltCutoff = ATTITUDE_LPF_CUTOFF_FREQ;
@@ -55,45 +54,45 @@ static inline int16_t saturateSignedInt16(float in)
 }
 
 PidObject pidRollRate = {
-  .kp = PID_ROLL_RATE_KP,
-  .ki = PID_ROLL_RATE_KI,
-  .kd = PID_ROLL_RATE_KD,
-  .kff = PID_ROLL_RATE_KFF,
+    .kp = PID_ROLL_RATE_KP,
+    .ki = PID_ROLL_RATE_KI,
+    .kd = PID_ROLL_RATE_KD,
+    .kff = PID_ROLL_RATE_KFF,
 };
 
 PidObject pidPitchRate = {
-  .kp = PID_PITCH_RATE_KP,
-  .ki = PID_PITCH_RATE_KI,
-  .kd = PID_PITCH_RATE_KD,
-  .kff = PID_PITCH_RATE_KFF,
+    .kp = PID_PITCH_RATE_KP,
+    .ki = PID_PITCH_RATE_KI,
+    .kd = PID_PITCH_RATE_KD,
+    .kff = PID_PITCH_RATE_KFF,
 };
 
 PidObject pidYawRate = {
-  .kp = PID_YAW_RATE_KP,
-  .ki = PID_YAW_RATE_KI,
-  .kd = PID_YAW_RATE_KD,
-  .kff = PID_YAW_RATE_KFF,
+    .kp = PID_YAW_RATE_KP,
+    .ki = PID_YAW_RATE_KI,
+    .kd = PID_YAW_RATE_KD,
+    .kff = PID_YAW_RATE_KFF,
 };
 
 PidObject pidRoll = {
-  .kp = PID_ROLL_KP,
-  .ki = PID_ROLL_KI,
-  .kd = PID_ROLL_KD,
-  .kff = PID_ROLL_KFF,
+    .kp = PID_ROLL_KP,
+    .ki = PID_ROLL_KI,
+    .kd = PID_ROLL_KD,
+    .kff = PID_ROLL_KFF,
 };
 
 PidObject pidPitch = {
-  .kp = PID_PITCH_KP,
-  .ki = PID_PITCH_KI,
-  .kd = PID_PITCH_KD,
-  .kff = PID_PITCH_KFF,
+    .kp = PID_PITCH_KP,
+    .ki = PID_PITCH_KI,
+    .kd = PID_PITCH_KD,
+    .kff = PID_PITCH_KFF,
 };
 
 PidObject pidYaw = {
-  .kp = PID_YAW_KP,
-  .ki = PID_YAW_KI,
-  .kd = PID_YAW_KD,
-  .kff = PID_YAW_KFF,
+    .kp = PID_YAW_KP,
+    .ki = PID_YAW_KI,
+    .kd = PID_YAW_KD,
+    .kff = PID_YAW_KFF,
 };
 
 static int16_t rollOutput;
@@ -104,31 +103,31 @@ static bool isInit;
 
 void attitudeControllerInit(const float updateDt)
 {
-  if(isInit)
+  if (isInit)
     return;
 
-  //TODO: get parameters from configuration manager instead - now (partly) implemented
-  pidInit(&pidRollRate,  0, pidRollRate.kp,  pidRollRate.ki,  pidRollRate.kd,
-       pidRollRate.kff,  updateDt, ATTITUDE_RATE, omxFiltCutoff, rateFiltEnable);
+  // TODO: get parameters from configuration manager instead - now (partly) implemented
+  pidInit(&pidRollRate, 0, pidRollRate.kp, pidRollRate.ki, pidRollRate.kd,
+          pidRollRate.kff, updateDt, ATTITUDE_RATE, omxFiltCutoff, rateFiltEnable);
   pidInit(&pidPitchRate, 0, pidPitchRate.kp, pidPitchRate.ki, pidPitchRate.kd,
-       pidPitchRate.kff, updateDt, ATTITUDE_RATE, omyFiltCutoff, rateFiltEnable);
-  pidInit(&pidYawRate,   0, pidYawRate.kp,   pidYawRate.ki,   pidYawRate.kd,
-       pidYawRate.kff,   updateDt, ATTITUDE_RATE, omzFiltCutoff, rateFiltEnable);
+          pidPitchRate.kff, updateDt, ATTITUDE_RATE, omyFiltCutoff, rateFiltEnable);
+  pidInit(&pidYawRate, 0, pidYawRate.kp, pidYawRate.ki, pidYawRate.kd,
+          pidYawRate.kff, updateDt, ATTITUDE_RATE, omzFiltCutoff, rateFiltEnable);
 
-  pidSetIntegralLimit(&pidRollRate,  PID_ROLL_RATE_INTEGRATION_LIMIT);
+  pidSetIntegralLimit(&pidRollRate, PID_ROLL_RATE_INTEGRATION_LIMIT);
   pidSetIntegralLimit(&pidPitchRate, PID_PITCH_RATE_INTEGRATION_LIMIT);
-  pidSetIntegralLimit(&pidYawRate,   PID_YAW_RATE_INTEGRATION_LIMIT);
+  pidSetIntegralLimit(&pidYawRate, PID_YAW_RATE_INTEGRATION_LIMIT);
 
-  pidInit(&pidRoll,  0, pidRoll.kp,  pidRoll.ki,  pidRoll.kd,  pidRoll.kff,  updateDt,
-      ATTITUDE_RATE, attFiltCutoff, attFiltEnable);
+  pidInit(&pidRoll, 0, pidRoll.kp, pidRoll.ki, pidRoll.kd, pidRoll.kff, updateDt,
+          ATTITUDE_RATE, attFiltCutoff, attFiltEnable);
   pidInit(&pidPitch, 0, pidPitch.kp, pidPitch.ki, pidPitch.kd, pidPitch.kff, updateDt,
-      ATTITUDE_RATE, attFiltCutoff, attFiltEnable);
-  pidInit(&pidYaw,   0, pidYaw.kp,   pidYaw.ki,   pidYaw.kd,   pidYaw.kff,   updateDt,
-      ATTITUDE_RATE, attFiltCutoff, attFiltEnable);
+          ATTITUDE_RATE, attFiltCutoff, attFiltEnable);
+  pidInit(&pidYaw, 0, pidYaw.kp, pidYaw.ki, pidYaw.kd, pidYaw.kff, updateDt,
+          ATTITUDE_RATE, attFiltCutoff, attFiltEnable);
 
-  pidSetIntegralLimit(&pidRoll,  PID_ROLL_INTEGRATION_LIMIT);
+  pidSetIntegralLimit(&pidRoll, PID_ROLL_INTEGRATION_LIMIT);
   pidSetIntegralLimit(&pidPitch, PID_PITCH_INTEGRATION_LIMIT);
-  pidSetIntegralLimit(&pidYaw,   PID_YAW_INTEGRATION_LIMIT);
+  pidSetIntegralLimit(&pidYaw, PID_YAW_INTEGRATION_LIMIT);
 
   isInit = true;
 }
@@ -139,8 +138,8 @@ bool attitudeControllerTest()
 }
 
 void attitudeControllerCorrectRatePID(
-       float rollRateActual, float pitchRateActual, float yawRateActual,
-       float rollRateDesired, float pitchRateDesired, float yawRateDesired)
+    float rollRateActual, float pitchRateActual, float yawRateActual,
+    float rollRateDesired, float pitchRateDesired, float yawRateDesired)
 {
   pidSetDesired(&pidRollRate, rollRateDesired);
   rollOutput = saturateSignedInt16(pidUpdate(&pidRollRate, rollRateActual, false));
@@ -154,9 +153,9 @@ void attitudeControllerCorrectRatePID(
 }
 
 void attitudeControllerCorrectAttitudePID(
-       float eulerRollActual, float eulerPitchActual, float eulerYawActual,
-       float eulerRollDesired, float eulerPitchDesired, float eulerYawDesired,
-       float* rollRateDesired, float* pitchRateDesired, float* yawRateDesired)
+    float eulerRollActual, float eulerPitchActual, float eulerYawActual,
+    float eulerRollDesired, float eulerPitchDesired, float eulerYawDesired,
+    float *rollRateDesired, float *pitchRateDesired, float *yawRateDesired)
 {
   pidSetDesired(&pidRoll, eulerRollDesired);
   *rollRateDesired = pidUpdate(&pidRoll, eulerRollActual, false);
@@ -172,12 +171,12 @@ void attitudeControllerCorrectAttitudePID(
 
 void attitudeControllerResetRollAttitudePID(float rollActual)
 {
-    pidReset(&pidRoll, rollActual);
+  pidReset(&pidRoll, rollActual);
 }
 
 void attitudeControllerResetPitchAttitudePID(float pitchActual)
 {
-    pidReset(&pidPitch, pitchActual);
+  pidReset(&pidPitch, pitchActual);
 }
 
 void attitudeControllerResetAllPID(float rollActual, float pitchActual, float yawActual)
@@ -190,7 +189,7 @@ void attitudeControllerResetAllPID(float rollActual, float pitchActual, float ya
   pidReset(&pidYawRate, 0);
 }
 
-void attitudeControllerGetActuatorOutput(int16_t* roll, int16_t* pitch, int16_t* yaw)
+void attitudeControllerGetActuatorOutput(int16_t *roll, int16_t *pitch, int16_t *yaw)
 {
   *roll = rollOutput;
   *pitch = pitchOutput;
@@ -204,7 +203,7 @@ float attitudeControllerGetYawMaxDelta(void)
 
 /**
  *  Log variables of attitude PID controller
- */ 
+ */
 LOG_GROUP_START(pid_attitude)
 /**
  * @brief Proportional output roll
@@ -313,7 +312,7 @@ LOG_GROUP_STOP(pid_rate)
 /**
  * Tuning settings for the gains of the PID
  * controller for the attitude of the Crazyflie which consists
- * of the Yaw Pitch and Roll 
+ * of the Yaw Pitch and Roll
  */
 PARAM_GROUP_START(pid_attitude)
 /**
@@ -380,7 +379,7 @@ PARAM_GROUP_STOP(pid_attitude)
 
 /**
  * Tuning settings for the gains of the PID controller for the rate angles of
- * the Crazyflie, which consists of the yaw, pitch and roll rates 
+ * the Crazyflie, which consists of the yaw, pitch and roll rates
  */
 PARAM_GROUP_START(pid_rate)
 /**

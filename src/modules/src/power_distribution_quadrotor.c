@@ -24,7 +24,6 @@
  * power_distribution_quadrotor.c - Crazyflie stock power distribution code
  */
 
-
 #include "power_distribution.h"
 
 #include <string.h>
@@ -38,12 +37,12 @@
 #include "platform_defaults.h"
 
 #if (!defined(CONFIG_MOTORS_REQUIRE_ARMING) || (CONFIG_MOTORS_REQUIRE_ARMING == 0)) && defined(CONFIG_MOTORS_DEFAULT_IDLE_THRUST) && (CONFIG_MOTORS_DEFAULT_IDLE_THRUST > 0)
-    #error "CONFIG_MOTORS_REQUIRE_ARMING must be defined and not set to 0 if CONFIG_MOTORS_DEFAULT_IDLE_THRUST is greater than 0"
+#error "CONFIG_MOTORS_REQUIRE_ARMING must be defined and not set to 0 if CONFIG_MOTORS_DEFAULT_IDLE_THRUST is greater than 0"
 #endif
 #ifndef CONFIG_MOTORS_DEFAULT_IDLE_THRUST
-#  define DEFAULT_IDLE_THRUST 0
+#define DEFAULT_IDLE_THRUST 0
 #else
-#  define DEFAULT_IDLE_THRUST CONFIG_MOTORS_DEFAULT_IDLE_THRUST
+#define DEFAULT_IDLE_THRUST CONFIG_MOTORS_DEFAULT_IDLE_THRUST
 #endif
 
 static uint32_t idleThrust = DEFAULT_IDLE_THRUST;
@@ -68,11 +67,12 @@ uint16_t powerDistributionStopRatio(uint32_t id)
 
 void powerDistributionInit(void)
 {
-  #if (!defined(CONFIG_MOTORS_REQUIRE_ARMING) || (CONFIG_MOTORS_REQUIRE_ARMING == 0))
-  if(idleThrust > 0) {
+#if (!defined(CONFIG_MOTORS_REQUIRE_ARMING) || (CONFIG_MOTORS_REQUIRE_ARMING == 0))
+  if (idleThrust > 0)
+  {
     DEBUG_PRINT("WARNING: idle thrust will be overridden with value 0. Autoarming can not be on while idle thrust is higher than 0. If you want to use idle thust please use use arming\n");
   }
-  #endif
+#endif
 }
 
 bool powerDistributionTest(void)
@@ -81,15 +81,17 @@ bool powerDistributionTest(void)
   return pass;
 }
 
-static uint16_t capMinThrust(float thrust, uint32_t minThrust) {
-  if (thrust < minThrust) {
+static uint16_t capMinThrust(float thrust, uint32_t minThrust)
+{
+  if (thrust < minThrust)
+  {
     return minThrust;
   }
 
   return thrust;
 }
 
-static void powerDistributionLegacy(const control_t *control, motors_thrust_uncapped_t* motorThrustUncapped)
+static void powerDistributionLegacy(const control_t *control, motors_thrust_uncapped_t *motorThrustUncapped)
 {
   int16_t r = control->roll / 2.0f;
   int16_t p = control->pitch / 2.0f;
@@ -100,7 +102,8 @@ static void powerDistributionLegacy(const control_t *control, motors_thrust_unca
   motorThrustUncapped->motors.m4 = control->thrust + r + p - control->yaw;
 }
 
-static void powerDistributionForceTorque(const control_t *control, motors_thrust_uncapped_t* motorThrustUncapped) {
+static void powerDistributionForceTorque(const control_t *control, motors_thrust_uncapped_t *motorThrustUncapped)
+{
   static float motorForces[STABILIZER_NR_OF_MOTORS];
 
   const float arm = 0.707106781f * armLength;
@@ -114,9 +117,11 @@ static void powerDistributionForceTorque(const control_t *control, motors_thrust
   motorForces[2] = thrustPart + rollPart + pitchPart - yawPart;
   motorForces[3] = thrustPart + rollPart - pitchPart + yawPart;
 
-  for (int motorIndex = 0; motorIndex < STABILIZER_NR_OF_MOTORS; motorIndex++) {
+  for (int motorIndex = 0; motorIndex < STABILIZER_NR_OF_MOTORS; motorIndex++)
+  {
     float motorForce = motorForces[motorIndex];
-    if (motorForce < 0.0f) {
+    if (motorForce < 0.0f)
+    {
       motorForce = 0.0f;
     }
 
@@ -125,29 +130,31 @@ static void powerDistributionForceTorque(const control_t *control, motors_thrust
   }
 }
 
-static void powerDistributionForce(const control_t *control, motors_thrust_uncapped_t* motorThrustUncapped) {
+static void powerDistributionForce(const control_t *control, motors_thrust_uncapped_t *motorThrustUncapped)
+{
   // Not implemented yet
 }
 
-void powerDistribution(const control_t *control, motors_thrust_uncapped_t* motorThrustUncapped)
+void powerDistribution(const control_t *control, motors_thrust_uncapped_t *motorThrustUncapped)
 {
-  switch (control->controlMode) {
-    case controlModeLegacy:
-      powerDistributionLegacy(control, motorThrustUncapped);
-      break;
-    case controlModeForceTorque:
-      powerDistributionForceTorque(control, motorThrustUncapped);
-      break;
-    case controlModeForce:
-      powerDistributionForce(control, motorThrustUncapped);
-      break;
-    default:
-      // Nothing here
-      break;
+  switch (control->controlMode)
+  {
+  case controlModeLegacy:
+    powerDistributionLegacy(control, motorThrustUncapped);
+    break;
+  case controlModeForceTorque:
+    powerDistributionForceTorque(control, motorThrustUncapped);
+    break;
+  case controlModeForce:
+    powerDistributionForce(control, motorThrustUncapped);
+    break;
+  default:
+    // Nothing here
+    break;
   }
 }
 
-bool powerDistributionCap(const motors_thrust_uncapped_t* motorThrustBatCompUncapped, motors_thrust_pwm_t* motorPwm)
+bool powerDistributionCap(const motors_thrust_uncapped_t *motorThrustBatCompUncapped, motors_thrust_pwm_t *motorPwm)
 {
   const int32_t maxAllowedThrust = UINT16_MAX;
   bool isCapped = false;
@@ -182,13 +189,14 @@ bool powerDistributionCap(const motors_thrust_uncapped_t* motorThrustBatCompUnca
 uint32_t powerDistributionGetIdleThrust()
 {
   int32_t thrust = idleThrust;
-  #if (!defined(CONFIG_MOTORS_REQUIRE_ARMING) || (CONFIG_MOTORS_REQUIRE_ARMING == 0))
-    thrust = 0;
-  #endif
+#if (!defined(CONFIG_MOTORS_REQUIRE_ARMING) || (CONFIG_MOTORS_REQUIRE_ARMING == 0))
+  thrust = 0;
+#endif
   return thrust;
 }
 
-float powerDistributionGetMaxThrust() {
+float powerDistributionGetMaxThrust()
+{
   // max thrust per rotor occurs if normalized PWM is 1
   // pwmToThrustA * pwm * pwm + pwmToThrustB * pwm = pwmToThrustA + pwmToThrustB
   return STABILIZER_NR_OF_MOTORS * (pwmToThrustA + pwmToThrustB);

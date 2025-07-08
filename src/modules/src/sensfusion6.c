@@ -33,26 +33,26 @@
 #include "autoconf.h"
 
 #ifdef CONFIG_IMU_MADGWICK_QUATERNION
-  #define BETA_DEF     0.01f    // 2 * proportional gain
-#else // MAHONY_QUATERNION_IMU
-    #define TWO_KP_DEF  (2.0f * 0.4f) // 2 * proportional gain
-    #define TWO_KI_DEF  (2.0f * 0.001f) // 2 * integral gain
+#define BETA_DEF 0.01f             // 2 * proportional gain
+#else                              // MAHONY_QUATERNION_IMU
+#define TWO_KP_DEF (2.0f * 0.4f)   // 2 * proportional gain
+#define TWO_KI_DEF (2.0f * 0.001f) // 2 * integral gain
 #endif
 
 #ifdef CONFIG_IMU_MADGWICK_QUATERNION
-  float beta = BETA_DEF;     // 2 * proportional gain (Kp)
-#else // MAHONY_QUATERNION_IMU
-  float twoKp = TWO_KP_DEF;    // 2 * proportional gain (Kp)
-  float twoKi = TWO_KI_DEF;    // 2 * integral gain (Ki)
-  float integralFBx = 0.0f;
-  float integralFBy = 0.0f;
-  float integralFBz = 0.0f;  // integral error terms scaled by Ki
+float beta = BETA_DEF; // 2 * proportional gain (Kp)
+#else                  // MAHONY_QUATERNION_IMU
+float twoKp = TWO_KP_DEF; // 2 * proportional gain (Kp)
+float twoKi = TWO_KI_DEF; // 2 * integral gain (Ki)
+float integralFBx = 0.0f;
+float integralFBy = 0.0f;
+float integralFBz = 0.0f; // integral error terms scaled by Ki
 #endif
 
 float qw = 1.0f;
 float qx = 0.0f;
 float qy = 0.0f;
-float qz = 0.0f;  // quaternion of sensor frame relative to auxiliary frame
+float qz = 0.0f; // quaternion of sensor frame relative to auxiliary frame
 
 static float gravX, gravY, gravZ; // Unit vector in the estimated gravity direction
 
@@ -67,14 +67,14 @@ static bool isCalibrated = false;
 
 static void sensfusion6UpdateQImpl(float gx, float gy, float gz, float ax, float ay, float az, float dt);
 static float sensfusion6GetAccZ(const float ax, const float ay, const float az);
-static void estimatedGravityDirection(float* gx, float* gy, float* gz);
+static void estimatedGravityDirection(float *gx, float *gy, float *gz);
 
 // TODO: Make math util file
 static float invSqrt(float x);
 
 void sensfusion6Init()
 {
-  if(isInit)
+  if (isInit)
     return;
 
   isInit = true;
@@ -90,7 +90,8 @@ void sensfusion6UpdateQ(float gx, float gy, float gz, float ax, float ay, float 
   sensfusion6UpdateQImpl(gx, gy, gz, ax, ay, az, dt);
   estimatedGravityDirection(&gravX, &gravY, &gravZ);
 
-  if (!isCalibrated) {
+  if (!isCalibrated)
+  {
     baseZacc = sensfusion6GetAccZ(ax, ay, az);
     isCalibrated = true;
   }
@@ -108,7 +109,7 @@ static void sensfusion6UpdateQImpl(float gx, float gy, float gz, float ax, float
   float recipNorm;
   float s0, s1, s2, s3;
   float qDot1, qDot2, qDot3, qDot4;
-  float _2qw, _2qx, _2qy, _2qz, _4qw, _4qx, _4qy ,_8qx, _8qy, qwqw, qxqx, qyqy, qzqz;
+  float _2qw, _2qx, _2qy, _2qz, _4qw, _4qx, _4qy, _8qx, _8qy, qwqw, qxqx, qyqy, qzqz;
 
   // Rate of change of quaternion from gyroscope
   qDot1 = 0.5f * (-qx * gx - qy * gy - qz * gz);
@@ -117,7 +118,7 @@ static void sensfusion6UpdateQImpl(float gx, float gy, float gz, float ax, float
   qDot4 = 0.5f * (qw * gz + qx * gy - qy * gx);
 
   // Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer normalisation)
-  if(!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f)))
+  if (!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f)))
   {
     // Normalise accelerometer measurement
     recipNorm = invSqrt(ax * ax + ay * ay + az * az);
@@ -165,7 +166,7 @@ static void sensfusion6UpdateQImpl(float gx, float gy, float gz, float ax, float
   qz += qDot4 * dt;
 
   // Normalise quaternion
-  recipNorm = invSqrt(qw*qw + qx*qx + qy*qy + qz*qz);
+  recipNorm = invSqrt(qw * qw + qx * qx + qy * qy + qz * qz);
   qw *= recipNorm;
   qx *= recipNorm;
   qy *= recipNorm;
@@ -190,7 +191,7 @@ static void sensfusion6UpdateQImpl(float gx, float gy, float gz, float ax, float
   gz = gz * M_PI_F / 180;
 
   // Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer normalisation)
-  if(!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f)))
+  if (!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f)))
   {
     // Normalise accelerometer measurement
     recipNorm = invSqrt(ax * ax + ay * ay + az * az);
@@ -209,12 +210,12 @@ static void sensfusion6UpdateQImpl(float gx, float gy, float gz, float ax, float
     halfez = (ax * halfvy - ay * halfvx);
 
     // Compute and apply integral feedback if enabled
-    if(twoKi > 0.0f)
+    if (twoKi > 0.0f)
     {
-      integralFBx += twoKi * halfex * dt;  // integral error scaled by Ki
+      integralFBx += twoKi * halfex * dt; // integral error scaled by Ki
       integralFBy += twoKi * halfey * dt;
       integralFBz += twoKi * halfez * dt;
-      gx += integralFBx;  // apply integral feedback
+      gx += integralFBx; // apply integral feedback
       gy += integralFBy;
       gz += integralFBz;
     }
@@ -232,7 +233,7 @@ static void sensfusion6UpdateQImpl(float gx, float gy, float gz, float ax, float
   }
 
   // Integrate rate of change of quaternion
-  gx *= (0.5f * dt);   // pre-multiply common factors
+  gx *= (0.5f * dt); // pre-multiply common factors
   gy *= (0.5f * dt);
   gz *= (0.5f * dt);
   qa = qw;
@@ -252,7 +253,7 @@ static void sensfusion6UpdateQImpl(float gx, float gy, float gz, float ax, float
 }
 #endif
 
-void sensfusion6GetQuaternion(float* q_x, float* q_y, float* q_z, float* q_w)
+void sensfusion6GetQuaternion(float *q_x, float *q_y, float *q_z, float *q_w)
 {
   *q_x = qx;
   *q_y = qy;
@@ -260,17 +261,19 @@ void sensfusion6GetQuaternion(float* q_x, float* q_y, float* q_z, float* q_w)
   *q_w = qw;
 }
 
-void sensfusion6GetEulerRPY(float* roll, float* pitch, float* yaw)
+void sensfusion6GetEulerRPY(float *roll, float *pitch, float *yaw)
 {
   float gx = gravX;
   float gy = gravY;
   float gz = gravZ;
 
-  if (gx>1) gx=1;
-  if (gx<-1) gx=-1;
+  if (gx > 1)
+    gx = 1;
+  if (gx < -1)
+    gx = -1;
 
-  *yaw = atan2f(2*(qw*qz + qx*qy), qw*qw + qx*qx - qy*qy - qz*qz) * 180 / M_PI_F;
-  *pitch = asinf(gx) * 180 / M_PI_F; //Pitch seems to be inverted
+  *yaw = atan2f(2 * (qw * qz + qx * qy), qw * qw + qx * qx - qy * qy - qz * qz) * 180 / M_PI_F;
+  *pitch = asinf(gx) * 180 / M_PI_F; // Pitch seems to be inverted
   *roll = atan2f(gy, gz) * 180 / M_PI_F;
 }
 
@@ -286,9 +289,9 @@ float invSqrt(float x)
 {
   float halfx = 0.5f * x;
   float y = x;
-  long i = *(long*)&y;
-  i = 0x5f3759df - (i>>1);
-  y = *(float*)&i;
+  long i = *(long *)&y;
+  i = 0x5f3759df - (i >> 1);
+  y = *(float *)&i;
   y = y * (1.5f - (halfx * y * y));
   return y;
 }
@@ -300,7 +303,7 @@ static float sensfusion6GetAccZ(const float ax, const float ay, const float az)
   return (ax * gravX + ay * gravY + az * gravZ);
 }
 
-static void estimatedGravityDirection(float* gx, float* gy, float* gz)
+static void estimatedGravityDirection(float *gx, float *gy, float *gz)
 {
   *gx = 2 * (qx * qz - qw * qy);
   *gy = 2 * (qw * qx + qy * qz);
@@ -319,43 +322,43 @@ LOG_GROUP_START(sensfusion6)
 /**
  * @brief W quaternion
  */
-  LOG_ADD(LOG_FLOAT, qw, &qw)
+LOG_ADD(LOG_FLOAT, qw, &qw)
 /**
  * @brief X quaternion
  */
-  LOG_ADD(LOG_FLOAT, qx, &qx)
+LOG_ADD(LOG_FLOAT, qx, &qx)
 /**
  * @brief y quaternion
  */
-  LOG_ADD(LOG_FLOAT, qy, &qy)
+LOG_ADD(LOG_FLOAT, qy, &qy)
 /**
  * @brief z quaternion
  */
-  LOG_ADD(LOG_FLOAT, qz, &qz)
+LOG_ADD(LOG_FLOAT, qz, &qz)
 /**
  * @brief Gravity vector X
  */
-  LOG_ADD(LOG_FLOAT, gravityX, &gravX)
+LOG_ADD(LOG_FLOAT, gravityX, &gravX)
 /**
  * @brief Gravity vector Y
  */
-  LOG_ADD(LOG_FLOAT, gravityY, &gravY)
+LOG_ADD(LOG_FLOAT, gravityY, &gravY)
 /**
  * @brief Gravity vector Z
  */
-  LOG_ADD(LOG_FLOAT, gravityZ, &gravZ)
+LOG_ADD(LOG_FLOAT, gravityZ, &gravZ)
 /**
  * @brief Gravity scale factor after calibration
  */
-  LOG_ADD(LOG_FLOAT, accZbase, &baseZacc)
+LOG_ADD(LOG_FLOAT, accZbase, &baseZacc)
 /**
  * @brief Nonzero if complimentary filter been initialized
  */
-  LOG_ADD(LOG_UINT8, isInit, &isInit)
+LOG_ADD(LOG_UINT8, isInit, &isInit)
 /**
  * @brief Nonzero if gravity scale been calibrated
  */
-  LOG_ADD(LOG_UINT8, isCalibrated, &isCalibrated)
+LOG_ADD(LOG_UINT8, isCalibrated, &isCalibrated)
 LOG_GROUP_STOP(sensfusion6)
 
 /**
