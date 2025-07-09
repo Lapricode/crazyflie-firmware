@@ -28,7 +28,8 @@
 
 #include "stabilizer_types.h"
 
-typedef enum {
+typedef enum
+{
   ControllerTypeAutoSelect,
   ControllerTypePID,
   ControllerTypeMellinger,
@@ -44,12 +45,11 @@ typedef enum {
 void controllerInit(ControllerType controller);
 bool controllerTest(void);
 void controller(control_t *control, const setpoint_t *setpoint,
-                                         const sensorData_t *sensors,
-                                         const state_t *state,
-                                         const stabilizerStep_t stabilizerStep);
+                const sensorData_t *sensors,
+                const state_t *state,
+                const stabilizerStep_t stabilizerStep);
 ControllerType controllerGetType(void);
-const char* controllerGetName();
-
+const char *controllerGetName();
 
 #ifdef CONFIG_CONTROLLER_OOT
 void controllerOutOfTreeInit(void);
