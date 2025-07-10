@@ -25,14 +25,49 @@ typedef struct
 } ControllerFcns;
 
 static ControllerFcns controllerFunctions[] = {
-    {.init = 0, .test = 0, .update = 0, .name = "None"}, // Any
-    {.init = controllerPidInit, .test = controllerPidTest, .update = controllerPid, .name = "PID"},
-    {.init = controllerMellingerFirmwareInit, .test = controllerMellingerFirmwareTest, .update = controllerMellingerFirmware, .name = "Mellinger"},
-    {.init = controllerINDIInit, .test = controllerINDITest, .update = controllerINDI, .name = "INDI"},
-    {.init = controllerBrescianiniInit, .test = controllerBrescianiniTest, .update = controllerBrescianini, .name = "Brescianini"},
-    {.init = controllerLeeFirmwareInit, .test = controllerLeeFirmwareTest, .update = controllerLeeFirmware, .name = "Lee"},
+    {
+        .init = 0,
+        .test = 0,
+        .update = 0,
+        .name = "None",
+    }, // Any
+    {
+        .init = controllerPidInit,
+        .test = controllerPidTest,
+        .update = controllerPid,
+        .name = "PID",
+    },
+    {
+        .init = controllerMellingerFirmwareInit,
+        .test = controllerMellingerFirmwareTest,
+        .update = controllerMellingerFirmware,
+        .name = "Mellinger",
+    },
+    {
+        .init = controllerINDIInit,
+        .test = controllerINDITest,
+        .update = controllerINDI,
+        .name = "INDI",
+    },
+    {
+        .init = controllerBrescianiniInit,
+        .test = controllerBrescianiniTest,
+        .update = controllerBrescianini,
+        .name = "Brescianini",
+    },
+    {
+        .init = controllerLeeFirmwareInit,
+        .test = controllerLeeFirmwareTest,
+        .update = controllerLeeFirmware,
+        .name = "Lee",
+    },
 #ifdef CONFIG_CONTROLLER_OOT
-    {.init = controllerOutOfTreeInit, .test = controllerOutOfTreeTest, .update = controllerOutOfTree, .name = "OutOfTree"},
+    {
+        .init = controllerOutOfTreeInit,
+        .test = controllerOutOfTreeTest,
+        .update = controllerOutOfTree,
+        .name = "OutOfTree",
+    },
 #endif
 };
 
