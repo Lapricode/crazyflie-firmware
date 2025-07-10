@@ -1,0 +1,2 @@
+obj-y += my_controller.o
+obj-y += my_estimator.o
