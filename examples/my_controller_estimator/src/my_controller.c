@@ -46,6 +46,9 @@
 
 #define DEBUG_MODULE "MY_CONTROLLER"
 
+static bool isInit = false;
+static const double tol = 1e-10f;
+
 typedef struct mat_3_3_s
 {
   float m[3][3];
@@ -169,10 +172,16 @@ static float Kinf[4][12] = {{0.0f}}; // initialize the LQR controller's Kinf mat
 static unsigned int Kinf_choice = 0; // parameter for the choice of the LQR controller's Kinf matrix
 // the default Kinf constant LQR controller's matrix
 static const float Kinf_default[4][12] = {
-    {-2.71590157e+02f, 2.35896304e+02f, 1.52133651e+03f, -9.03479720e+02f, -1.04304546e+03f, -7.67036493e+02f, -2.56559311e+02f, 2.22574639e+02f, 7.32607133e+02f, -1.81002719e+02f, -2.09583025e+02f, -7.85383863e+02f},
-    {2.52825073e+02f, 1.68719488e+02f, 1.52133651e+03f, -6.42500797e+02f, 9.71212229e+02f, 7.63683116e+02f, 2.38857746e+02f, 1.58795431e+02f, 7.32607133e+02f, -1.27918210e+02f, 1.95200780e+02f, 7.81884951e+02f},
-    {1.50173387e+02f, -1.87511546e+02f, 1.52133651e+03f, 7.14434491e+02f, 5.68735348e+02f, -7.54503405e+02f, 1.41003727e+02f, -1.76522136e+02f, 7.32607133e+02f, 1.42319997e+02f, 1.12545881e+02f, -7.72337468e+02f},
-    {-1.31408303e+02f, -2.17104246e+02f, 1.52133651e+03f, 8.31546026e+02f, -4.96902111e+02f, 7.57856782e+02f, -1.23302161e+02f, -2.04847933e+02f, 7.32607133e+02f, 1.66600932e+02f, -9.81636353e+01f, 7.75836380e+02f}};
+    {-4.34612169e+02f, 2.25644573e+02f, 1.07444819e+03f, -9.41655365e+02f, -1.20221510e+03f, -8.49498402e+02f, -3.56292177e+02f, 2.43187738e+02f, 7.49740794e+02f, -1.74737382e+02f, -1.98468534e+02f, -6.25310833e+02f},
+    {4.04150916e+02f, 1.71361278e+02f, 1.07444819e+03f, -7.09858035e+02f, 1.11832284e+03f, 8.47710105e+02f, 3.31365009e+02f, 1.84191075e+02f, 7.49740794e+02f, -1.30593138e+02f, 1.84689421e+02f, 6.23855890e+02f},
+    {2.77671758e+02f, -1.89076156e+02f, 1.07444819e+03f, 7.83778559e+02f, 7.52894884e+02f, -8.41753850e+02f, 2.25767115e+02f, -2.03282872e+02f, 7.49740794e+02f, 1.44306492e+02f, 1.21498330e+02f, -6.19160783e+02f},
+    {-2.47210505e+02f, -2.07929696e+02f, 1.07444819e+03f, 8.67734841e+02f, -6.69002624e+02f, 8.43542147e+02f, -2.00839947e+02f, -2.24095941e+02f, 7.49740794e+02f, 1.61024028e+02f, -1.07719217e+02f, 6.20615726e+02f}};
+// // very good Kinf!
+// static const float Kinf_default[4][12] = {
+//     {-8.46581487e+02f, 7.36733795e+02f, 4.72268962e+03f, -1.29534439e+03f, -1.49422694e+03f, -1.08286382e+03f, -5.19059177e+02f, 4.50885761e+02f, 1.08974537e+03f, -1.84844968e+02f, -2.14105733e+02f, -7.91565474e+02f},
+//     {7.87892956e+02f, 5.28998202e+02f, 4.72268962e+03f, -9.22677153e+02f, 1.39111275e+03f, 1.07797145e+03f, 4.83152862e+02f, 3.22528056e+02f, 1.08974537e+03f, -1.30529303e+02f, 1.99404240e+02f, 7.87900017e+02f},
+//     {4.72748481e+02f, -5.87769873e+02f, 4.72268962e+03f, 1.02593178e+03f, 8.18283109e+02f, -1.06465301e+03f, 2.87199386e+02f, -3.58484283e+02f, 1.08974537e+03f, 1.45250021e+02f, 1.14787654e+02f, -7.77962027e+02f},
+//     {-4.14059950e+02f, -6.77962125e+02f, 4.72268962e+03f, 1.19208976e+03f, -7.15168913e+02f, 1.06954537e+03f, -2.51293070e+02f, -4.14929533e+02f, 1.08974537e+03f, 1.70124250e+02f, -1.00086161e+02f, 7.81627484e+02f}};
 // static const float Kinf_default[4][12] = {
 //     {-2.88838980e+02f, 1.72822432e+02f, 1.48239954e+03f, -9.05656797e+02f, -1.15819524e+03f, -7.87679074e+02f, -2.99871730e+02f, 2.17298829e+02f, 1.18444332e+03f, -1.86751780e+02f, -2.22895120e+02f, -9.57572347e+02f},
 //     {2.69415982e+02f, 1.16048132e+02f, 1.48239954e+03f, -6.05576128e+02f, 1.08051434e+03f, 7.82918086e+02f, 2.79726551e+02f, 1.45706509e+02f, 1.18444332e+03f, -1.24307441e+02f, 2.07986837e+02f, 9.51750150e+02f},
@@ -207,12 +216,12 @@ static const float Kinf_default[4][12] = {
 //     {-1.07147588e+02f, -1.37052547e+02f, 4.85003523e+02f, 7.88207046e+02f, -6.05733273e+02f, 4.18212084e+02f, -1.57750340e+02f, -2.02689836e+02f, 5.76010628e+02f, 1.50353022e+02f, -1.13231857e+02f, 4.34383070e+02f}};
 
 static float state_error[12] = {0.0f}; // the state error
-// static float hover_speeds[4] = {1900.0f, 1900.0f, 1900.0f, 1900.0f}; // the angular speeds (in rad/sec) of the 4 rotors, for the crazyflie to hover
-static float hover_speeds[4];                                             // the angular speeds (in rad/sec) of the 4 rotors, for the crazyflie to hover
+// static vec_4_t hover_speeds = {{1900.0f, 1900.0f, 1900.0f, 1900.0f}}; // the angular speeds (in rad/sec) of the 4 rotors, for the crazyflie to hover
+static vec_4_t hover_speeds;                                              // the angular speeds (in rad/sec) of the 4 rotors, for the crazyflie to hover
 static float hover_adjust = 0.0f;                                         // adjust hover speeds for hover calibration
-static float control_speeds[4] = {0.0f, 0.0f, 0.0f, 0.0f};                // the controlled angular speeds (in rad/sec) of the 4 rotors
+static vec_4_t control_speeds = {{0.0f, 0.0f, 0.0f, 0.0f}};               // the controlled angular speeds (in rad/sec) of the 4 rotors
 static float max_control_speed = 25000.0f * (2.0f * (float)M_PI / 60.0f); // the maximum angular speed (in rad/sec) of a rotor, approximately 2618.0f rad/sec
-static float control_thrusts[4] = {0.0f, 0.0f, 0.0f, 0.0f};               // the controlled thrusts (in N) of the 4 rotors
+static vec_4_t control_thrusts = {{0.0f, 0.0f, 0.0f, 0.0f}};              // the controlled thrusts (in N) of the 4 rotors
 static unsigned int update_rate = RATE_HL_COMMANDER;                      // RATE_HL_COMMANDER;                      // the update rate of the control loop (100 Hz default rate)
 static bool do_norm_forces_control = true;                                // if true, then controlModeForce, else controlModeForceTorque
 
@@ -221,8 +230,8 @@ static float control_thrust_total = 0.0f;                   // the total thrust 
 static vec_3_t control_body_torques = {{0.0f, 0.0f, 0.0f}}; // the body torques for each axis (x, y, z)
 
 // for the normalized forces control mode (controlModeForce), do_norm_forces_control = true
-static const float max_thrust = 0.156f;                          // the maximum thrust (in N) generated by only 1 motor
-static float control_norm_thrusts[4] = {0.0f, 0.0f, 0.0f, 0.0f}; // the controlled normalized thrusts, in [0, 1], of the 4 rotors
+static const float max_thrust = 0.156f;                           // the maximum thrust (in N) generated by only 1 motor
+static vec_4_t control_norm_thrusts = {{0.0f, 0.0f, 0.0f, 0.0f}}; // the controlled normalized thrusts, in [0, 1], of the 4 rotors
 
 // functions definitions
 // float capAngle(float);
@@ -323,8 +332,8 @@ static vec_3_t mat33_vec3_multiply(mat_3_3_t A, vec_3_t b)
   return result;
 }
 
-// compute the product A * b, where A is a 4x12 matrix and b is a 12x1 column vector
-static void mat412_vec12_multiply(const float A[4][12], const float b[12], float *result)
+// compute the 4x1 column vector product A * b, where A is a 4x12 matrix and b is a 12x1 column vector
+static void mat412_vec12_multiply(const float A[4][12], const float b[12], vec_4_t *result)
 {
   for (int i = 0; i < 4; i++)
   {
@@ -333,7 +342,7 @@ static void mat412_vec12_multiply(const float A[4][12], const float b[12], float
     {
       sum += A[i][j] * b[j];
     }
-    result[i] = sum;
+    result->v[i] = sum;
   }
   return;
 }
@@ -376,7 +385,6 @@ static vec_3_t SO3_minus_right(mat_3_3_t R1, mat_3_3_t R2)
   vec_3_t result;
   float tr = R_rel.m[0][0] + R_rel.m[1][1] + R_rel.m[2][2];
   float cos_theta = (tr - 1.0f) / 2.0f;
-  const float tol = 1e-5f;
 
   // clamp for numerical safety
   if (cos_theta > 1.0f)
@@ -388,7 +396,7 @@ static vec_3_t SO3_minus_right(mat_3_3_t R1, mat_3_3_t R2)
   float theta = acosf(cos_theta);
 
   // case 1: theta close to zero
-  if (fabsf(theta) < tol)
+  if (fabs(theta) < tol)
   {
     result.v[0] = 0.0f;
     result.v[1] = 0.0f;
@@ -397,28 +405,28 @@ static vec_3_t SO3_minus_right(mat_3_3_t R1, mat_3_3_t R2)
   }
 
   // case 2: theta close to pi (180 degrees)
-  if (fabsf((float)M_PI - theta) < tol)
+  if (fabs((float)M_PI - theta) < tol)
   {
     float r00 = R_rel.m[0][0], r01 = R_rel.m[0][1], r02 = R_rel.m[0][2];
     float r10 = R_rel.m[1][0], r11 = R_rel.m[1][1], r12 = R_rel.m[1][2];
     float r20 = R_rel.m[2][0], r21 = R_rel.m[2][1], r22 = R_rel.m[2][2];
 
     float multiplier;
-    if (!(fabsf(r22 + 1.0f) < tol))
+    if (!(fabs(r22 + 1.0f) < tol))
     {
       multiplier = theta / sqrtf(2.0f * (1.0f + r22));
       result.v[0] = multiplier * r02;
       result.v[1] = multiplier * r12;
       result.v[2] = multiplier * (1.0f + r22);
     }
-    else if (!(fabsf(r11 + 1.0f) < tol))
+    else if (!(fabs(r11 + 1.0f) < tol))
     {
       multiplier = theta / sqrtf(2.0f * (1.0f + r11));
       result.v[0] = multiplier * r01;
       result.v[1] = multiplier * (1.0f + r11);
       result.v[2] = multiplier * r21;
     }
-    else if (!(fabsf(r00 + 1.0f) < tol))
+    else if (!(fabs(r00 + 1.0f) < tol))
     {
       // fallback to first row
       multiplier = theta / sqrtf(2.0f * (1.0f + r00));
@@ -498,7 +506,7 @@ void hover_control_init(void)
   // compute the motors angular speeds (in rad/sec) needed, in order for the crazyflie to hover
   for (int i = 0; i < 4; i++)
   {
-    hover_speeds[i] = sqrtf(m_cf * g / 4.0f / kf) + hover_adjust; // approximately 1900.0f rad/sec
+    hover_speeds.v[i] = sqrtf(m_cf * g / 4.0f / kf) + hover_adjust; // approximately 1900.0f rad/sec
   }
   return;
 }
@@ -560,13 +568,14 @@ void controllerOutOfTreeInit(void)
   // controllerPidInit();
   hover_control_init();
   Kinf_LQR_init(Kinf_choice);
+  isInit = true;
   return;
 }
 
 bool controllerOutOfTreeTest(void)
 {
   // return controllerPidTest();
-  return true;
+  return isInit;
 }
 
 void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
@@ -604,22 +613,22 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
 
     // compute the control vector signal
     compute_state_error(state_cur, state_ref, state_error);
-    float control_feedback[4];
-    mat412_vec12_multiply(Kinf, state_error, control_feedback);
+    vec_4_t control_feedback;
+    mat412_vec12_multiply(Kinf, state_error, &control_feedback);
     for (int i = 0; i < 4; i++)
     {
-      control_speeds[i] = hover_speeds[i] - control_feedback[i];
-      if (control_speeds[i] < 0.0f)
-        control_speeds[i] = 0.0f;
-      if (control_speeds[i] > max_control_speed)
-        control_speeds[i] = max_control_speed;
-      control_thrusts[i] = kf * powf(control_speeds[i], 2.0f);
+      control_speeds.v[i] = hover_speeds.v[i] - control_feedback.v[i];
+      if (control_speeds.v[i] < 0.0f)
+        control_speeds.v[i] = 0.0f;
+      if (control_speeds.v[i] > max_control_speed)
+        control_speeds.v[i] = max_control_speed;
+      control_thrusts.v[i] = kf * powf(control_speeds.v[i], 2.0f);
     }
     // if (RATE_DO_EXECUTE(1, debug_print_counter))
     //   DEBUG_PRINT("%lu: [%.3f, %.3f, %.3f, %.3f], [%.3f, %.3f, %.3f, %.3f]\n",
     //               tick,
-    //               (double)hover_speeds[0], (double)hover_speeds[1], (double)hover_speeds[2], (double)hover_speeds[3],
-    //               (double)control_feedback[0], (double)control_feedback[1], (double)control_feedback[2], (double)control_feedback[3]);
+    //               (double)hover_speeds.v1, (double)hover_speeds.v2, (double)hover_speeds.v3, (double)hover_speeds.v4,
+    //               (double)control_feedback.v1, (double)control_feedback.v2, (double)control_feedback.v3, (double)control_feedback.v4);
   }
 
   // everything mentioned below is for a single motor
@@ -655,8 +664,8 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
     {
       for (int i = 0; i < 4; i++)
       {
-        control_norm_thrusts[i] = clamp_to_unit_interval(control_thrusts[i] / max_thrust);
-        control->normalizedForces[i] = control_norm_thrusts[i];
+        control_norm_thrusts.v[i] = clamp_to_unit_interval(control_thrusts.v[i] / max_thrust);
+        control->normalizedForces[i] = control_norm_thrusts.v[i];
       }
       control->controlMode = controlModeForce;
     }
@@ -665,13 +674,13 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
       control_thrust_total = 0.0f;
       for (int i = 0; i < 4; i++)
       {
-        control_thrust_total += control_thrusts[i];
+        control_thrust_total += control_thrusts.v[i];
       }
       const float cos_comp = l * kf * cosf(body_yaw0);
       const float sin_comp = l * kf * sinf(body_yaw0);
-      control_body_torques.x = cos_comp * (powf(control_speeds[0], 2.0f) - powf(control_speeds[2], 2.0f)) - sin_comp * (powf(control_speeds[3], 2.0f) - powf(control_speeds[1], 2.0f));
-      control_body_torques.y = sin_comp * (powf(control_speeds[0], 2.0f) - powf(control_speeds[2], 2.0f)) + cos_comp * (powf(control_speeds[3], 2.0f) - powf(control_speeds[1], 2.0f));
-      control_body_torques.z = kt * (powf(control_speeds[1], 2.0f) + powf(control_speeds[3], 2.0f) - powf(control_speeds[0], 2.0f) - powf(control_speeds[2], 2.0f));
+      control_body_torques.x = cos_comp * (powf(control_speeds.v1, 2.0f) - powf(control_speeds.v3, 2.0f)) - sin_comp * (powf(control_speeds.v4, 2.0f) - powf(control_speeds.v2, 2.0f));
+      control_body_torques.y = sin_comp * (powf(control_speeds.v1, 2.0f) - powf(control_speeds.v3, 2.0f)) + cos_comp * (powf(control_speeds.v4, 2.0f) - powf(control_speeds.v2, 2.0f));
+      control_body_torques.z = kt * (powf(control_speeds.v2, 2.0f) + powf(control_speeds.v4, 2.0f) - powf(control_speeds.v1, 2.0f) - powf(control_speeds.v3, 2.0f));
       control->thrustSi = control_thrust_total;
       control->torqueX = control_body_torques.x;
       control->torqueY = control_body_torques.y;
@@ -722,11 +731,11 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
     //             (double)state_error[9], (double)state_error[10], (double)state_error[11]);
     // DEBUG_PRINT("Motors speeds (rad/sec) [%lu]: m1 = %.0f,\t\t m2 = %.0f,\t\t m3 = %.0f,\t\t m4 = %.0f\n",
     //             tick,
-    //             (double)control_speeds[0], (double)control_speeds[1], (double)control_speeds[2], (double)control_speeds[3]);
+    //             (double)control_speeds.v1, (double)control_speeds.v2, (double)control_speeds.v3, (double)control_speeds.v4);
     // DEBUG_PRINT("Motors thrusts (N) [%lu]: m1 = %.3f (%.3f),\t\t m2 = %.3f (%.3f),\t\t m3 = %.3f (%.3f),\t\t m4 = %.3f (%.3f)\n",
     //             tick,
-    //             (double)control_thrusts[0], (double)control_norm_thrusts[0], (double)control_thrusts[1], (double)control_norm_thrusts[1],
-    //             (double)control_thrusts[2], (double)control_norm_thrusts[2], (double)control_thrusts[3], (double)control_norm_thrusts[3]);
+    //             (double)control_thrusts.v1, (double)control_norm_thrusts.v1, (double)control_thrusts.v2, (double)control_norm_thrusts.v2,
+    //             (double)control_thrusts.v3, (double)control_norm_thrusts.v3, (double)control_thrusts.v4, (double)control_norm_thrusts.v4);
     // DEBUG_PRINT("\n");
   }
   debug_print_counter += 1;
@@ -764,18 +773,18 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
   // omegab_x_error = state_error[9];
   // omegab_y_error = state_error[10];
   // omegab_z_error = state_error[11];
-  // ctrl_speed_m1 = control_speeds[0];
-  // ctrl_speed_m2 = control_speeds[1];
-  // ctrl_speed_m3 = control_speeds[2];
-  // ctrl_speed_m4 = control_speeds[3];
-  // ctrl_thrust_m1 = control_thrusts[0];
-  // ctrl_thrust_m2 = control_thrusts[1];
-  // ctrl_thrust_m3 = control_thrusts[2];
-  // ctrl_thrust_m4 = control_thrusts[3];
-  // ctrl_norm_thrust_m1 = control_norm_thrusts[0];
-  // ctrl_norm_thrust_m2 = control_norm_thrusts[1];
-  // ctrl_norm_thrust_m3 = control_norm_thrusts[2];
-  // ctrl_norm_thrust_m4 = control_norm_thrusts[3];
+  // ctrl_speed_m1 = control_speeds.v1;
+  // ctrl_speed_m2 = control_speeds.v2;
+  // ctrl_speed_m3 = control_speeds.v3;
+  // ctrl_speed_m4 = control_speeds.v4;
+  // ctrl_thrust_m1 = control_thrusts.v1;
+  // ctrl_thrust_m2 = control_thrusts.v2;
+  // ctrl_thrust_m3 = control_thrusts.v3;
+  // ctrl_thrust_m4 = control_thrusts.v4;
+  // ctrl_norm_thrust_m1 = control_norm_thrusts.v1;
+  // ctrl_norm_thrust_m2 = control_norm_thrusts.v2;
+  // ctrl_norm_thrust_m3 = control_norm_thrusts.v3;
+  // ctrl_norm_thrust_m4 = control_norm_thrusts.v4;
 
   // controllerPid(control, setpoint, sensors, state, tick);
 }
