@@ -47,9 +47,23 @@
 #include "platform_defaults.h"
 #include "stabilizer_types.h"
 
+// Measurement models
+#include "mm_distance.h"
+#include "mm_absolute_height.h"
+#include "mm_position.h"
+#include "mm_pose.h"
+#include "mm_tdoa.h"
+#include "mm_flow.h"
+#include "mm_tof.h"
+#include "mm_yaw_error.h"
+#include "mm_sweep_angles.h"
+#include "mm_tdoa_robust.h"
+#include "mm_distance_robust.h"
+
 #define DEBUG_MODULE "MY_ESTIMATOR"
 #define SIZE3 3
 #define SIZE4 4
+#define SIZE9 9
 #define SIZE12 12
 
 static bool isInit = false;
@@ -116,12 +130,40 @@ static unsigned int debug_print_counter = 0; // a counter for debug printing rat
 // static const float kf = 2.25e-08f; // the coefficient parameter of the square model: thrust (N) vs. rotor_speed (rad/sec), for a single motor
 // static const float kt = 1.34e-10f; // the coefficient parameter of the square model: torque (N*m) vs. rotor_speed (rad/sec), for a single motor, kt = 0.00596 * kf
 
-// // define parameters for the Extended Kalman Filter (EKF)
-// static const uint32_t predict_rate = RATE_100_HZ;
-// static const float prediction_update_interval_ms = 1000.0f / (float)predict_rate;
-// static float;
-// static const float max_covariance = 100.0f;
-// static const float min_covariance = 1e-6f;
+// define parameters for the Extended Kalman Filter (EKF)
+static const uint32_t predict_rate = RATE_100_HZ;
+static const float prediction_update_interval_ms = 1000.0f / (float)predict_rate;
+static float Q[SIZE12][SIZE12] = {
+    // process noise covariance
+    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
+};
+static float R[SIZE9][SIZE9] = {
+    // observation noise covariance
+    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0},
+    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
+};
+static float P[SIZE12][SIZE12];             // covariance estimate
+static float S[SIZE12][SIZE12];             // innovation covariance
+static const float max_covariance = 100.0f; // maximum allowed covariance
+static const float min_covariance = 1e-6f;  // minimum allowed covariance
 
 // static void kalman_predict(kalmanCoreData_t *this);
 // static void kalman_update(kalmanCoreData_t *this);
@@ -154,9 +196,77 @@ void mat_12_12_mult(const float A[SIZE12][SIZE12], const float B[SIZE12][SIZE12]
   }
 }
 
-// compute the inverse S^(-1) of a 12x12 matrix S
-void inverse_12_mat(const float S[SIZE12][SIZE12], float S_inv[SIZE12][SIZE12])
+// compute the inverse S^(-1) of a 12x12 matrix S using Gauss-Jordan elimination
+void invert_matrix(float S[SIZE12][SIZE12], float S_inv[SIZE12][SIZE12])
 {
+  float S_copy[SIZE12][SIZE12];
+  memcpy(S_copy, S, sizeof(float) * SIZE12 * SIZE12);
+
+  // initialize inverse matrix as the identity matrix
+  for (int i = 0; i < SIZE12; i++)
+  {
+    for (int j = 0; j < SIZE12; j++)
+    {
+      S_inv[i][j] = (i == j) ? 1.0 : 0.0;
+    }
+  }
+
+  for (int i = 0; i < SIZE12; i++)
+  {
+    // check for zero diagonal element
+    if (fabs(S_copy[i][i]) < EPSILON)
+    {
+      // find a row to swap
+      int swapped = 0;
+      for (int k = i + 1; k < SIZE12; k++)
+      {
+        if (fabs(S_copy[k][i]) > EPSILON)
+        {
+          // swap rows in both S and the inverse
+          for (int j = 0; j < SIZE12; j++)
+          {
+            float tmp = S_copy[i][j];
+            S_copy[i][j] = S_copy[k][j];
+            S_copy[k][j] = tmp;
+
+            tmp = S_inv[i][j];
+            S_inv[i][j] = S_inv[k][j];
+            S_inv[k][j] = tmp;
+          }
+          swapped = 1;
+          break;
+        }
+      }
+      if (!swapped) // singular matrix
+      {
+        return 0;
+      }
+    }
+
+    // normalize the pivot row
+    float temp;
+    temp = S_copy[i][i];
+    for (int j = 0; j < SIZE12; j++)
+    {
+      S_copy[i][j] /= temp;
+      S_inv[i][j] /= temp;
+    }
+
+    // eliminate other rows
+    for (int k = 0; k < SIZE12; k++)
+    {
+      if (k == i)
+        continue;
+      temp = S_copy[k][i];
+      for (int j = 0; j < SIZE12; j++)
+      {
+        S_copy[k][j] -= S_copy[i][j] * temp;
+        S_inv[k][j] -= S_inv[i][j] * temp;
+      }
+    }
+  }
+
+  return;
 }
 
 // right plus operation for the orientation of the quadrotor
