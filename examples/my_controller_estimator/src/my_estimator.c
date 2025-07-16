@@ -63,8 +63,8 @@
 #define DEBUG_MODULE "MY_ESTIMATOR"
 #define SIZE3 3
 #define SIZE4 4
-#define SIZE9 9
-#define SIZE12 12
+#define STATE_DIM 12
+#define MEASURE_DIM 9
 
 static bool isInit = false;
 static const double tol = 1e-10f;
@@ -95,6 +95,29 @@ typedef union quat_u
     float w, x, y, z;
   };
 } quat_t; // quaternion
+
+typedef struct cf_state_s
+{
+  vec_3_t rw; // position w.r.t. world frame
+  quat_t qwb; // body orientation in quaternion form w.r.t. world frame
+  vec_3_t vb; // linear velocity w.r.t body frame
+  vec_3_t ob; // angular velocity w.r.t body frame
+} cf_state_t; // crazyflie's state structure
+
+typedef struct matSS_s
+{
+  float m[STATE_DIM][STATE_DIM];
+} matSS_t; // STATE_DIMxSTATE_DIM matrix
+
+typedef struct matSM_s
+{
+  float m[STATE_DIM][MEASURE_DIM];
+} matSM_t; // STATE_DIMxMEASURE_DIM matrix
+
+typedef struct matMS_s
+{
+  float m[MEASURE_DIM][STATE_DIM];
+} matMS_t; // MEASURE_DIMxSTATE_DIM matrix
 
 // define some logging variables
 static unsigned int debug_print_counter = 0; // a counter for debug printing rate
@@ -133,7 +156,7 @@ static unsigned int debug_print_counter = 0; // a counter for debug printing rat
 // define parameters for the Extended Kalman Filter (EKF)
 static const uint32_t predict_rate = RATE_100_HZ;
 static const float prediction_update_interval_ms = 1000.0f / (float)predict_rate;
-static float Q[SIZE12][SIZE12] = {
+static float Q[STATE_DIM][STATE_DIM] = {
     // process noise covariance
     {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
     {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
@@ -148,7 +171,7 @@ static float Q[SIZE12][SIZE12] = {
     {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0},
     {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
 };
-static float R[SIZE9][SIZE9] = {
+static float R[MEASURE_DIM][MEASURE_DIM] = {
     // observation noise covariance
     {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
     {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
@@ -160,70 +183,158 @@ static float R[SIZE9][SIZE9] = {
     {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0},
     {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
 };
-static float P[SIZE12][SIZE12];             // covariance estimate
-static float S[SIZE12][SIZE12];             // innovation covariance
+// static float P[STATE_DIM][STATE_DIM];       // covariance estimate
+// static float S[STATE_DIM][STATE_DIM];       // innovation covariance
 static const float max_covariance = 100.0f; // maximum allowed covariance
 static const float min_covariance = 1e-6f;  // minimum allowed covariance
 
 // static void kalman_predict(kalmanCoreData_t *this);
 // static void kalman_update(kalmanCoreData_t *this);
+static float clamp_value(float, float, float);
+static vec_3_t mat33_vec3_multiply(const mat_3_3_t, const vec_3_t);
+static void matSS_matSS_multiply(const float[STATE_DIM][STATE_DIM], const float[STATE_DIM][STATE_DIM], float[STATE_DIM][STATE_DIM]);
+static void matSS_matSM_multiply();
+static void matMS_matSM_multiply();
+static void matSM_matMS_multiply();
+static void matSS_transpose(const float[STATE_DIM][STATE_DIM], float[STATE_DIM][STATE_DIM]);
+static void matMS_transpose(const float[MEASURE_DIM][STATE_DIM], float[STATE_DIM][MEASURE_DIM]);
+static void matS_invert(const float[STATE_DIM][STATE_DIM], float[STATE_DIM][STATE_DIM]);
+static void SO3_plus_right(const float[SIZE3][SIZE3], const float[SIZE3], float[SIZE3][SIZE3]);
+static cf_state_t predict_state(const cf_state_t, const vec_4_t);
+static matSS_t predict_covariance(const);
+static matSM_t update_kalman_gain();
+static cf_state_t update_state(const cf_state_t, const float[STATE_DIM][MEASURE_DIM], const float[MEASURE_DIM]);
+static matSS_t update_covariance(void);
 
-// compute the 3x3 matrix multiplication C = A * B, where A, B are square matrices of size 3x3
-void mat_3_3_mult(const float A[SIZE3][SIZE3], const float B[SIZE3][SIZE3], float C[SIZE3][SIZE3])
+// clamp a float value betweeen two limit values
+float clamp_value(float value, float min_lim, float max_lim)
 {
-  for (int i = 0; i < SIZE3; i++)
+  if (value < min_lim)
+    return min_lim;
+  if (value > max_lim)
+    return max_lim;
+  return value;
+}
+
+// compute the product A * b, where A is a 3x3 matrix and b is a 3x1 column vector
+static vec_3_t mat33_vec3_multiply(const mat_3_3_t A, const vec_3_t b)
+{
+  vec_3_t result;
+  for (int i = 0; i < 3; i++)
   {
-    for (int j = 0; j < SIZE3; j++)
+    result.v[i] = A.m[i][0] * b.v[0] + A.m[i][1] * b.v[1] + A.m[i][2] * b.v[2];
+  }
+  return result;
+}
+
+// compute the STATE_DIMxSTATE_DIM matrix multiplication C = A * B, where A, B are square matrices of size STATE_DIMxSTATE_DIM
+static void matSS_matSS_multiply(const float A[STATE_DIM][STATE_DIM], const float B[STATE_DIM][STATE_DIM], float C[STATE_DIM][STATE_DIM])
+{
+  for (int i = 0; i < STATE_DIM; i++)
+  {
+    for (int j = 0; j < STATE_DIM; j++)
     {
       C[i][j] = 0.0;
-      for (int k = 0; k < 3; k++)
+      for (int k = 0; k < STATE_DIM; k++)
         C[i][j] += A[i][k] * B[k][j];
     }
   }
+  return;
 }
 
-// compute the 12x12 matrix multiplication C = A * B, where A, B are square matrices of size 12x12
-void mat_12_12_mult(const float A[SIZE12][SIZE12], const float B[SIZE12][SIZE12], float C[SIZE12][SIZE12])
+// compute the STATE_DIMxSTATE_DIM matrix multiplication C = A * B, where A, B are square matrices of size STATE_DIMxSTATE_DIM
+static void matSS_matS_multiply(const float A[STATE_DIM][STATE_DIM], const float B[STATE_DIM][STATE_DIM], float C[STATE_DIM][STATE_DIM])
 {
-  for (int i = 0; i < SIZE12; i++)
+  for (int i = 0; i < STATE_DIM; i++)
   {
-    for (int j = 0; j < SIZE12; j++)
+    for (int j = 0; j < STATE_DIM; j++)
     {
       C[i][j] = 0.0;
-      for (int k = 0; k < SIZE12; k++)
+      for (int k = 0; k < STATE_DIM; k++)
         C[i][j] += A[i][k] * B[k][j];
     }
   }
+  return;
 }
 
-// compute the inverse S^(-1) of a 12x12 matrix S using Gauss-Jordan elimination
-void invert_matrix(float S[SIZE12][SIZE12], float S_inv[SIZE12][SIZE12])
+// compute the STATE_DIMxSTATE_DIM matrix multiplication C = A * B, where A, B are square matrices of size STATE_DIMxSTATE_DIM
+static void matSM_matMS_multiply(const float A[STATE_DIM][STATE_DIM], const float B[STATE_DIM][STATE_DIM], float C[STATE_DIM][STATE_DIM])
 {
-  float S_copy[SIZE12][SIZE12];
-  memcpy(S_copy, S, sizeof(float) * SIZE12 * SIZE12);
+  for (int i = 0; i < STATE_DIM; i++)
+  {
+    for (int j = 0; j < STATE_DIM; j++)
+    {
+      C[i][j] = 0.0;
+      for (int k = 0; k < STATE_DIM; k++)
+        C[i][j] += A[i][k] * B[k][j];
+    }
+  }
+  return;
+}
+
+// compute the STATE_DIMxSTATE_DIM matrix multiplication C = A * B, where A, B are square matrices of size STATE_DIMxSTATE_DIM
+static void matMS_matSM_multiply(const float A[STATE_DIM][STATE_DIM], const float B[STATE_DIM][STATE_DIM], float C[STATE_DIM][STATE_DIM])
+{
+  for (int i = 0; i < STATE_DIM; i++)
+  {
+    for (int j = 0; j < STATE_DIM; j++)
+    {
+      C[i][j] = 0.0;
+      for (int k = 0; k < STATE_DIM; k++)
+        C[i][j] += A[i][k] * B[k][j];
+    }
+  }
+  return;
+}
+
+// compute the STATE_DIMxSTATE_DIM transposed matrix A^T, where A is a STATE_DIMxSTATE_DIM matrix
+static void matSS_transpose(const float[STATE_DIM][STATE_DIM], float[STATE_DIM][STATE_DIM])
+{
+  float At[STATE_DIM][STATE_DIM];
+  for (int i = 0; i < STATE_DIM, i++)
+    for (int j = 0; j < STATE_DIM, j++)
+      At[i][j] = A[j][i];
+  return;
+}
+
+// compute the STATE_DIMxMEASURE_DIM transposed matrix A^T, where A is a MEASURE_DIMxSTATE_DIM matrix
+static void matMS_transpose(const float[MEASURE_DIM][STATE_DIM], float[STATE_DIM][MEASURE_DIM])
+{
+  float At[STATE_DIM][MEASURE_DIM];
+  for (int i = 0; i < STATE_DIM, i++)
+    for (int j = 0; j < MEASURE_DIM, j++)
+      At[i][j] = A[j][i];
+  return;
+}
+
+// compute the inverse A^(-1) of a STATE_DIMxSTATE_DIM matrix A using Gauss-Jordan elimination
+static void matS_invert(const float S[STATE_DIM][STATE_DIM], float S_inv[STATE_DIM][STATE_DIM])
+{
+  float S_copy[STATE_DIM][STATE_DIM];
+  memcpy(S_copy, S, sizeof(float) * STATE_DIM * STATE_DIM);
 
   // initialize inverse matrix as the identity matrix
-  for (int i = 0; i < SIZE12; i++)
+  for (int i = 0; i < STATE_DIM; i++)
   {
-    for (int j = 0; j < SIZE12; j++)
+    for (int j = 0; j < STATE_DIM; j++)
     {
       S_inv[i][j] = (i == j) ? 1.0 : 0.0;
     }
   }
 
-  for (int i = 0; i < SIZE12; i++)
+  for (int i = 0; i < STATE_DIM; i++)
   {
     // check for zero diagonal element
-    if (fabs(S_copy[i][i]) < EPSILON)
+    if (fabs(S_copy[i][i]) < tol)
     {
       // find a row to swap
       int swapped = 0;
-      for (int k = i + 1; k < SIZE12; k++)
+      for (int k = i + 1; k < STATE_DIM; k++)
       {
-        if (fabs(S_copy[k][i]) > EPSILON)
+        if (fabs(S_copy[k][i]) > tol)
         {
           // swap rows in both S and the inverse
-          for (int j = 0; j < SIZE12; j++)
+          for (int j = 0; j < STATE_DIM; j++)
           {
             float tmp = S_copy[i][j];
             S_copy[i][j] = S_copy[k][j];
@@ -239,26 +350,26 @@ void invert_matrix(float S[SIZE12][SIZE12], float S_inv[SIZE12][SIZE12])
       }
       if (!swapped) // singular matrix
       {
-        return 0;
+        return;
       }
     }
 
     // normalize the pivot row
     float temp;
     temp = S_copy[i][i];
-    for (int j = 0; j < SIZE12; j++)
+    for (int j = 0; j < STATE_DIM; j++)
     {
       S_copy[i][j] /= temp;
       S_inv[i][j] /= temp;
     }
 
     // eliminate other rows
-    for (int k = 0; k < SIZE12; k++)
+    for (int k = 0; k < STATE_DIM; k++)
     {
       if (k == i)
         continue;
       temp = S_copy[k][i];
-      for (int j = 0; j < SIZE12; j++)
+      for (int j = 0; j < STATE_DIM; j++)
       {
         S_copy[k][j] -= S_copy[i][j] * temp;
         S_inv[k][j] -= S_inv[i][j] * temp;
@@ -270,7 +381,7 @@ void invert_matrix(float S[SIZE12][SIZE12], float S_inv[SIZE12][SIZE12])
 }
 
 // right plus operation for the orientation of the quadrotor
-void right_plus(const float R[SIZE3][3], const float tau[SIZE3], float R_plus[SIZE3][SIZE3])
+static void SO3_plus_right(const float R[SIZE3][SIZE3], const float tau[SIZE3], float R_plus[SIZE3][SIZE3])
 {
   float R_exp[SIZE3][SIZE3];
 
@@ -302,6 +413,35 @@ void right_plus(const float R[SIZE3][3], const float tau[SIZE3], float R_plus[SI
       R_exp[i][j] = (i == j ? 1.0f : 0.0f) + sinf(theta) * u_hat[i][j] + (1.0f - cosf(theta)) * u_hat_squared[i][j];
 
   mat_3_3_mult(R, R_exp, R_plus);
+
+  return;
+}
+
+static cf_state_t predict_state(const cf_state_t x_kpr_kpr, const vec_4_t u)
+{
+  cf_state_t x_k_kpr;
+  return x_k_kpr;
+}
+
+static matSS_t predict_covariance()
+{
+  return;
+}
+
+static matSM_t update_kalman_gain()
+{
+  return;
+}
+
+static cf_state_t update_state(const cf_state_t x_k_kpr, const float K[STATE_DIM][MEASURE_DIM], const float zk[MEASURE_DIM])
+{
+  cf_state_t x_k_k;
+  return x_k_k;
+}
+
+static matSS_t update_covariance(void)
+{
+  return;
 }
 
 void estimatorOutOfTreeInit(void)
