@@ -92,11 +92,11 @@ typedef union quat_u
 
 typedef struct cf_state_s
 {
-  vec3_t rw;  // position w.r.t. world frame
-  quat_t qwb; // body orientation in quaternion form w.r.t. world frame
-  vec3_t vb;  // linear velocity w.r.t body frame
-  vec3_t ob;  // angular velocity w.r.t body frame
-} cf_state_t; // crazyflie's state structure
+  vec3_t rw;   // position w.r.t. world frame
+  mat33_t Rwb; // body orientation in rotation matrix form w.r.t. world frame
+  vec3_t vb;   // linear velocity w.r.t body frame
+  vec3_t ob;   // angular velocity w.r.t body frame
+} cf_state_t;  // crazyflie's state structure
 
 // // define some logging variables
 // static float posw_x;
@@ -467,19 +467,17 @@ static vec12_t compute_state_error(const cf_state_t state_cur, const cf_state_t 
 {
   // extract state components
   vec3_t rw_1 = state_cur.rw;
-  quat_t qwb_1 = state_cur.qwb;
-  mat33_t Rwb_1 = Rq_mat(qwb_1);
+  mat33_t Rwb_1 = state_cur.Rwb;
   vec3_t vb_1 = state_cur.vb;
   vec3_t ob_1 = state_cur.ob;
 
   vec3_t rw_2 = state_ref.rw;
-  quat_t qwb_2 = state_ref.qwb;
-  mat33_t Rwb_2 = Rq_mat(qwb_2);
+  mat33_t Rwb_2 = state_ref.Rwb;
   vec3_t vb_2 = state_ref.vb;
   vec3_t ob_2 = state_ref.ob;
 
   // compute errors
-  vec3_t rw_error[3];
+  vec3_t rw_error;
   for (int i = 0; i < 3; i++)
   {
     rw_error.v[i] = rw_1.v[i] - rw_2.v[i];
@@ -488,13 +486,13 @@ static vec12_t compute_state_error(const cf_state_t state_cur, const cf_state_t 
   vec3_t Rwb_error;
   Rwb_error = SO3_minus_right(Rwb_1, Rwb_2);
 
-  vec3_t vb_error[3];
+  vec3_t vb_error;
   for (int i = 0; i < 3; i++)
   {
     vb_error.v[i] = vb_1.v[i] - vb_2.v[i];
   }
 
-  vec3_t ob_error[3];
+  vec3_t ob_error;
   for (int i = 0; i < 3; i++)
   {
     ob_error.v[i] = ob_1.v[i] - ob_2.v[i];
@@ -608,8 +606,8 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
     vec3_t vb_cur = mat33_vec3_multiply(mat33_transpose(Rwb_cur), vw_cur);
     cf_state_t state_cur = {
         .rw = {{state->position.x, state->position.y, state->position.z}},
-        .qwb = {{qwb_cur.w, qwb_cur.x, qwb_cur.y, qwb_cur.z}},
-        .vb = {{vb_cur.x, vb_cur.y, vb_cur.z}},
+        .Rwb = Rwb_cur,
+        .vb = vb_cur,
         .ob = {{radians(sensors->gyro.x), radians(sensors->gyro.y), radians(sensors->gyro.z)}},
     };
 
@@ -617,9 +615,10 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
     vec3_t rpyb_ref = {{0., 0., radians(setpoint->attitude.yaw)}};
     // vec3_t rpyb_ref = {{radians(setpoint->attitude.roll), -radians(setpoint->attitude.pitch), radians(setpoint->attitude.yaw)}};
     quat_t qwb_ref = qrpy_quat(rpyb_ref);
+    mat33_t Rwb_ref = Rq_mat(qwb_ref);
     cf_state_t state_ref = {
         .rw = {{setpoint->position.x, setpoint->position.y, setpoint->position.z}},
-        .qwb = {{qwb_ref.w, qwb_ref.x, qwb_ref.y, qwb_ref.z}},
+        .Rwb = Rwb_ref,
         .vb = {{0.0, 0.0, 0.0}},
         .ob = {{0.0, 0.0, 0.0}},
     };
@@ -726,14 +725,14 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
     // DEBUG_PRINT("Current state [%lu]: rw(m) = [%.3f, %.3f, %.3f],\t\t qwb = [%.3f, %.3f, %.3f, %.3f],\t\t rpyb(deg) = [%.3f, %.3f, %.3f],\n\t\t vb(m/s) = [%.3f, %.3f, %.3f],\t\t ob(deg/s) = [%.3f, %.3f, %.3f]\n",
     //             tick,
     //             (double)state_cur.rw.x, (double)state_cur.rw.y, (double)state_cur.rw.z,
-    //             (double)state_cur.qwb.w, (double)state_cur.qwb.x, (double)state_cur.qwb.y, (double)state_cur.qwb.z,
+    //             (double)qwb_cur.w, (double)qwb_cur.x, (double)qwb_cur.y, (double)qwb_cur.z,
     //             (double)degrees(rpyb_cur.x), (double)degrees(rpyb_cur.y), (double)degrees(rpyb_cur.z),
     //             (double)state_cur.vb.x, (double)state_cur.vb.y, (double)state_cur.vb.z,
     //             (double)degrees(state_cur.ob.x), (double)degrees(state_cur.ob.y), (double)degrees(state_cur.ob.z));
     // DEBUG_PRINT("Reference state [%lu]: rw(m) = [%.3f, %.3f, %.3f],\t\t qwb = [%.3f, %.3f, %.3f, %.3f],\t\t rpyb(deg) = [%.3f, %.3f, %.3f]\n",
     //             tick,
     //             (double)state_ref.rw.x, (double)state_ref.rw.y, (double)state_ref.rw.z,
-    //             (double)state_ref.qwb.w, (double)state_ref.qwb.x, (double)state_ref.qwb.y, (double)state_ref.qwb.z,
+    //             (double)qwb_ref.w, (double)qwb_ref.x, (double)qwb_ref.y, (double)qwb_ref.z,
     //             (double)degrees(rpyb_ref.x), (double)degrees(rpyb_ref.y), (double)degrees(rpyb_ref.z));
     // DEBUG_PRINT("State error [%lu]: [%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f]\n",
     //             tick,
@@ -756,10 +755,10 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
   // posw_x = state_cur.rw.x;
   // posw_y = state_cur.rw.y;
   // posw_z = state_cur.rw.z;
-  // qwb_w = state_cur.qwb.w;
-  // qwb_x = state_cur.qwb.x;
-  // qwb_y = state_cur.qwb.y;
-  // qwb_z = state_cur.qwb.z;
+  // qwb_w = qwb_cur.w;
+  // qwb_x = qwb_cur.x;
+  // qwb_y = qwb_cur.y;
+  // qwb_z = qwb_cur.z;
   // roll = rpyb_cur.x;
   // pitch = rpyb_cur.y;
   // yaw = rpyb_cur.z;

@@ -68,7 +68,7 @@
 #define SIZE4 4
 #define STATE_DIM 12
 #define MEASURE_DIM 9
-#define MEASUREMENTS_QUEUE_SIZE (20)
+// #define MEASUREMENTS_QUEUE_SIZE (20)
 // static xQueueHandle measurementsQueue;
 // STATIC_MEM_QUEUE_ALLOC(measurementsQueue, MEASUREMENTS_QUEUE_SIZE, sizeof(measurement_t));
 
@@ -193,47 +193,50 @@ static unsigned int debug_print_counter = 0; // a counter for debug printing rat
 // static const float kf = 2.25e-08f; // the coefficient parameter of the square model: thrust (N) vs. rotor_speed (rad/sec), for a single motor
 // static const float kt = 1.34e-10f; // the coefficient parameter of the square model: torque (N*m) vs. rotor_speed (rad/sec), for a single motor, kt = 0.00596 * kf
 
-// define parameters for the Extended Kalman Filter (EKF)
+// define variables and parameters for the Extended Kalman Filter (EKF)
 static const uint32_t predict_rate = RATE_100_HZ;
 static const float prediction_update_interval_ms = 1000.0f / (float)predict_rate;
 static matSS_t Q = {
     // process noise covariance
-    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
-};
+    {
+        {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
+    }};
 static matMM_t R = {
     // observation noise covariance
-    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0},
-    {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
-};
+    {
+        {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0},
+        {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
+    }};
+static matSS_t P = {{{0.0f}}};              // covariance estimate
 static const float max_covariance = 100.0f; // maximum allowed covariance
 static const float min_covariance = 1e-6f;  // minimum allowed covariance
 
 // functions definitions
 // static void kalman_predict(kalmanCoreData_t *this);
 // static void kalman_update(kalmanCoreData_t *this);
-static float clamp_value(float, float, float);
+// static float clamp_value(float, float, float);
 static mat33_t Rq_mat(quat_t);
 static vec3_t mat33_vec3_multiply(const mat33_t, const vec3_t);
 static vecS_t matSM_vecM_multiply(const matSM_t, const vecM_t);
-static vecM_t matMS_vecS_multiply(const matMS_t, const vecS_t);
+// static vecM_t matMS_vecS_multiply(const matMS_t, const vecS_t);
 static mat33_t mat33_mat33_multiply(const mat33_t, const mat33_t);
 static matSS_t matSS_matSS_multiply(const matSS_t, const matSS_t);
 static matSM_t matSS_matSM_multiply(const matSS_t, const matSM_t);
@@ -255,17 +258,17 @@ static cf_state_t predict_state(const cf_state_t, const vec4_t);
 static matSS_t predict_covariance(const matSS_t, const matSS_t);
 static matSM_t update_kalman_gain(const matSS_t, const matMS_t);
 static cf_state_t update_state(const cf_state_t, const matSM_t, const vecM_t);
-static matSS_t update_covariance(const matSS_t, const matSM_t, const matMM_t);
+static matSS_t update_covariance(const matSS_t, const matSM_t, const matMS_t);
 
-// clamp a float value betweeen two limit values
-float clamp_value(float value, float min_lim, float max_lim)
-{
-  if (value < min_lim)
-    return min_lim;
-  if (value > max_lim)
-    return max_lim;
-  return value;
-}
+// // clamp a float value betweeen two limit values
+// float clamp_value(float value, float min_lim, float max_lim)
+// {
+//   if (value < min_lim)
+//     return min_lim;
+//   if (value > max_lim)
+//     return max_lim;
+//   return value;
+// }
 
 // convert a quaternion to the corresponding rotation matrix
 // there is also the function "struct mat33 quat2rotmat(struct quat q)"" of "math3d.h"
@@ -313,19 +316,19 @@ static vecS_t matSM_vecM_multiply(const matSM_t A, const vecM_t b)
   return result;
 }
 
-// matMS * vecS -> vecM
-static vecM_t matMS_vecS_multiply(const matMS_t A, const vecS_t b)
-{
-  vecM_t result;
-  for (int i = 0; i < MEASURE_DIM; i++)
-  {
-    result.v[i] = A.m[i][0] * b.v[0] + A.m[i][1] * b.v[1] + A.m[i][2] * b.v[2] +
-                  A.m[i][3] * b.v[3] + A.m[i][4] * b.v[4] + A.m[i][5] * b.v[5] +
-                  A.m[i][6] * b.v[6] + A.m[i][7] * b.v[7] + A.m[i][8] * b.v[8] +
-                  A.m[i][9] * b.v[9] + A.m[i][10] * b.v[10] + A.m[i][11] * b.v[11];
-  }
-  return result;
-}
+// // matMS * vecS -> vecM
+// static vecM_t matMS_vecS_multiply(const matMS_t A, const vecS_t b)
+// {
+//   vecM_t result;
+//   for (int i = 0; i < MEASURE_DIM; i++)
+//   {
+//     result.v[i] = A.m[i][0] * b.v[0] + A.m[i][1] * b.v[1] + A.m[i][2] * b.v[2] +
+//                   A.m[i][3] * b.v[3] + A.m[i][4] * b.v[4] + A.m[i][5] * b.v[5] +
+//                   A.m[i][6] * b.v[6] + A.m[i][7] * b.v[7] + A.m[i][8] * b.v[8] +
+//                   A.m[i][9] * b.v[9] + A.m[i][10] * b.v[10] + A.m[i][11] * b.v[11];
+//   }
+//   return result;
+// }
 
 // compute the product A * B, where A is a 3x3 matrix and B is a 3x3 matrix
 static mat33_t mat33_mat33_multiply(const mat33_t A, const mat33_t B)
@@ -464,8 +467,7 @@ static matSM_t matMS_transpose(const matMS_t A)
 // compute the inverse A^(-1) of a STATE_DIMxSTATE_DIM matrix A using Gauss-Jordan elimination
 static matMM_t matMM_invert(const matMM_t A)
 {
-  matMM_t A_copy;
-  memcpy(&A_copy, &A, sizeof(matMM_t));
+  matMM_t A_copy = A;
 
   // initialize inverse matrix as the identity matrix
   matMM_t A_inv;
@@ -584,7 +586,8 @@ static cf_state_t state_plus_right(const cf_state_t x, const vecS_t ds)
     rw_sum.v[i] = rw.v[i] + ds.v[i];
   }
 
-  mat33_t Rwb_sum = SO3_plus_right(Rwb, ds.v[SIZE3 + i]);
+  vec3_t ds_Rwb = {{ds.v[SIZE3], ds.v[SIZE3 + 1], ds.v[SIZE3 + 2]}};
+  mat33_t Rwb_sum = SO3_plus_right(Rwb, ds_Rwb);
 
   vec3_t vb_sum;
   for (int i = 0; i < SIZE3; i++)
@@ -611,57 +614,56 @@ static cf_state_t state_plus_right(const cf_state_t x, const vecS_t ds)
 // the nonlinear transition model, the crazyflie dynamics
 static cf_state_t transition_model(const cf_state_t x, const vec4_t u)
 {
-  vec3_t rw = x.rw;
-  mat33_t Rwb = x.Rwb;
-  vec3_t vb = x.vb;
-  vec3_t ob = x.ob;
+  // vec3_t rw = x.rw;
+  // mat33_t Rwb = x.Rwb;
+  // vec3_t vb = x.vb;
+  // vec3_t ob = x.ob;
 
-  vecS_t x_next;
+  cf_state_t x_next = x;
   return x_next;
 }
 
 static matSS_t transition_jacobian(const cf_state_t x, const vec4_t u)
 {
-  vec3_t rw = x.rw;
-  mat33_t Rwb = x.Rwb;
-  vec3_t vb = x.vb;
-  vec3_t ob = x.ob;
+  // vec3_t rw = x.rw;
+  // mat33_t Rwb = x.Rwb;
+  // vec3_t vb = x.vb;
+  // vec3_t ob = x.ob;
 
-  matSS_t F;
+  matSS_t F = {{{0.0f}}};
   return F;
 }
 
 // the observation model, the crazyflie measurements
 static vecM_t observation_model(const cf_state_t x)
 {
-  // extract state components
-  vec3_t rw = x.rw;
-  mat33_t Rwb = x.Rwb;
-  vec3_t vb = x.vb;
-  vec3_t ob = x.ob;
+  // vec3_t rw = x.rw;
+  // mat33_t Rwb = x.Rwb;
+  // vec3_t vb = x.vb;
+  // vec3_t ob = x.ob;
 
-  vecM_t h;
+  vecM_t h = {{0.0f}};
   return h;
 }
 
 static matMS_t observation_jacobian(const cf_state_t x)
 {
-  vec3_t rw = x.rw;
-  mat33_t Rwb = x.Rwb;
-  vec3_t vb = x.vb;
-  vec3_t ob = x.ob;
+  // vec3_t rw = x.rw;
+  // mat33_t Rwb = x.Rwb;
+  // vec3_t vb = x.vb;
+  // vec3_t ob = x.ob;
 
-  matMS_t H;
+  matMS_t H = {{{0.0f}}};
   return H;
 }
 
 static cf_state_t predict_state(const cf_state_t x_kpr_kpr, const vec4_t u_pr)
 {
-  vecS_t x_k_kpr = transition_model(x_kpr_kpr, u_pr);
+  cf_state_t x_k_kpr = transition_model(x_kpr_kpr, u_pr);
   return x_k_kpr;
 }
 
-static matSS_t predict_covariance(const matSS_t F_k, const matSS_t P_kpr_kpr)
+static matSS_t predict_covariance(const matSS_t P_kpr_kpr, const matSS_t F_k)
 {
   matSS_t F_k_tr = matSS_transpose(F_k);
   matSS_t temp = matSS_matSS_multiply(matSS_matSS_multiply(F_k, P_kpr_kpr), F_k_tr);
@@ -670,7 +672,7 @@ static matSS_t predict_covariance(const matSS_t F_k, const matSS_t P_kpr_kpr)
   {
     for (int j = 0; j < STATE_DIM; j++)
     {
-      P_k_kpr.m[i][j] = temp.m[i][j] + Q[i][j];
+      P_k_kpr.m[i][j] = temp.m[i][j] + Q.m[i][j];
     }
   }
   return P_k_kpr;
@@ -678,7 +680,7 @@ static matSS_t predict_covariance(const matSS_t F_k, const matSS_t P_kpr_kpr)
 
 static matSM_t update_kalman_gain(matSS_t P_k_kpr, matMS_t H_k)
 {
-  matMS_t H_k_tr = matMS_transpose(H_k);
+  matSM_t H_k_tr = matMS_transpose(H_k);
   matSM_t temp1 = matSS_matSM_multiply(P_k_kpr, H_k_tr);
   matMM_t temp2 = matMS_matSM_multiply(H_k, temp1);
   matMM_t temp3 = {{{0.0f}}};
@@ -686,7 +688,7 @@ static matSM_t update_kalman_gain(matSS_t P_k_kpr, matMS_t H_k)
   {
     for (int j = 0; j < MEASURE_DIM; j++)
     {
-      temp3.m[i][j] = temp2.m[i][j] + R[i][j];
+      temp3.m[i][j] = temp2.m[i][j] + R.m[i][j];
     }
   }
   matSM_t K_k = matSM_matMM_multiply(temp1, matMM_invert(temp3));
@@ -696,16 +698,17 @@ static matSM_t update_kalman_gain(matSS_t P_k_kpr, matMS_t H_k)
 static cf_state_t update_state(const cf_state_t x_k_kpr, const matSM_t K_k, const vecM_t z_k)
 {
   vecM_t temp1;
+  vecM_t h_k_kpr = observation_model(x_k_kpr);
   for (int i = 0; i < MEASURE_DIM; i++)
   {
-    temp1.v[i] = z_k.v[i] - observation_model(x_k_kpr);
+    temp1.v[i] = z_k.v[i] - h_k_kpr.v[i];
   }
   vecS_t temp2 = matSM_vecM_multiply(K_k, temp1);
   cf_state_t x_k_k = state_plus_right(x_k_kpr, temp2);
   return x_k_k;
 }
 
-static matSS_t update_covariance(const matSS_t P_k_kpr, const matSM_t K_k, const matMM_t H_k)
+static matSS_t update_covariance(const matSS_t P_k_kpr, const matSM_t K_k, const matMS_t H_k)
 {
   matSS_t temp1 = matSM_matMS_multiply(K_k, H_k);
   matSS_t temp2;
@@ -746,20 +749,30 @@ void estimatorOutOfTree(state_t *state, const stabilizerStep_t tick)
   quat_t qwb_cur = {{state->attitudeQuaternion.w, state->attitudeQuaternion.x, state->attitudeQuaternion.y, state->attitudeQuaternion.z}};
   mat33_t Rwb_cur = Rq_mat(qwb_cur);
   vec3_t vb_cur = mat33_vec3_multiply(mat33_transpose(Rwb_cur), vw_cur);
-  cf_state_t x_k_kpr = {
+  cf_state_t x_kpr_kpr = {
       .rw = {{state->position.x, state->position.y, state->position.z}},
       .Rwb = Rwb_cur,
       .vb = vb_cur,
-      .ob = {{radians(sensors->gyro.x), radians(sensors->gyro.y), radians(sensors->gyro.z)}},
+      .ob = {{0.0f}}, // need to fix this
+                      // .ob = {{radians(sensors->gyro.x), radians(sensors->gyro.y), radians(sensors->gyro.z)}},
   };
 
-  // get the current control input given
+  // get the current control input
   vec4_t u_kpr;
 
-  // predict
-  cf_state_t = ;
+  // get the current measurements
+  vecM_t z_k;
 
-  // update
+  // predict estimate
+  cf_state_t x_k_kpr = predict_state(x_kpr_kpr, u_kpr);
+  matSS_t F_k = transition_jacobian(x_kpr_kpr, u_kpr);
+  P = predict_covariance(P, F_k);
+
+  // update estimate
+  matMS_t H_k = observation_jacobian(x_k_kpr);
+  matSM_t K_k = update_kalman_gain(P, H_k);
+  cf_state_t x_k_k = update_state(x_k_k, K_k, z_k);
+  P = update_covariance(P, K_k, H_k);
 
   // print some data for debugging
   if (RATE_DO_EXECUTE(1, debug_print_counter))
