@@ -247,7 +247,7 @@ static vec3_t vec3_vec3_cross(const vec3_t, const vec3_t);
 static vec3_t vec3_vec3_add(const vec3_t, const vec3_t);
 static vec3_t vec3_vec3_sub(const vec3_t, const vec3_t);
 static vec3_t vec3_scale(const vec3_t, const float);
-static mat33_t mat33_mat33_add(const mat33_t, const mat33_t);
+// static mat33_t mat33_mat33_add(const mat33_t, const mat33_t);
 static mat33_t mat33_mat33_sub(const mat33_t, const mat33_t);
 static vec3_t mat33_vec3_multiply(const mat33_t, const vec3_t);
 static vecS_t matSM_vecM_multiply(const matSM_t, const vecM_t);
@@ -359,15 +359,15 @@ static vec3_t vec3_scale(const vec3_t v, const float s)
   return result;
 }
 
-// compute the addition of two 3x3 matrices
-static mat33_t mat33_mat33_add(const mat33_t A, const mat33_t B)
-{
-  mat33_t C;
-  for (int i = 0; i < 3; ++i)
-    for (int j = 0; j < 3; ++j)
-      C.m[i][j] = A.m[i][j] + B.m[i][j];
-  return C;
-}
+// // compute the addition of two 3x3 matrices
+// static mat33_t mat33_mat33_add(const mat33_t A, const mat33_t B)
+// {
+//   mat33_t C;
+//   for (int i = 0; i < 3; ++i)
+//     for (int j = 0; j < 3; ++j)
+//       C.m[i][j] = A.m[i][j] + B.m[i][j];
+//   return C;
+// }
 
 // compute the subtraction of two 3x3 matrices
 static mat33_t mat33_mat33_sub(const mat33_t A, const mat33_t B)
@@ -784,11 +784,7 @@ static vecM_t observation_model(const cf_state_t x)
   vec3_t vb = x.vb;
   vec3_t ob = x.ob;
 
-  vec3_t ab = {{0.0f}};
-  for (int i = 0; i < SIZE3; i++)
-  {
-    ab.v[i] = (vb.v[i] - vb_prev.v[i]) / dt;
-  }
+  vec3_t ab = vec3_scale(vec3_vec3_sub(vb, vb_prev), 1.0f / dt);
   vb_prev.x = vb.x;
   vb_prev.y = vb.y;
   vb_prev.z = vb.z;
