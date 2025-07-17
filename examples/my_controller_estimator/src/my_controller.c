@@ -374,8 +374,8 @@ static mat33_t mat33_mat33_multiply(const mat33_t A, const mat33_t B)
 // compute the right minus operation of the SO3 group
 static vec3_t SO3_minus_right(const mat33_t R1, const mat33_t R2)
 {
+  vec3_t result = {{0.0f}};
   mat33_t R_rel = mat33_mat33_multiply(mat33_transpose(R2), R1); // this matrix goes inside the SO3 Log
-  vec3_t result;
   float tr = R_rel.m[0][0] + R_rel.m[1][1] + R_rel.m[2][2];
   float cos_theta = clamp_value((tr - 1.0f) / 2.0f, -1.0f, 1.0f); // clamp for numerical safety
 
@@ -385,9 +385,6 @@ static vec3_t SO3_minus_right(const mat33_t R1, const mat33_t R2)
   // case 1: theta close to zero
   if (fabs(theta) < tol)
   {
-    result.v[0] = 0.0f;
-    result.v[1] = 0.0f;
-    result.v[2] = 0.0f;
     return result;
   }
 

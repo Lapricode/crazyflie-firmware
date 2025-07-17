@@ -247,8 +247,9 @@ static vec3_t vec3_vec3_cross(const vec3_t, const vec3_t);
 static vec3_t vec3_vec3_add(const vec3_t, const vec3_t);
 static vec3_t vec3_vec3_sub(const vec3_t, const vec3_t);
 static vec3_t vec3_scale(const vec3_t, const float);
-// static mat33_t mat33_mat33_add(const mat33_t, const mat33_t);
+static mat33_t mat33_mat33_add(const mat33_t, const mat33_t);
 static mat33_t mat33_mat33_sub(const mat33_t, const mat33_t);
+static mat33_t mat33_scale(const mat33_t, const float);
 static vec3_t mat33_vec3_multiply(const mat33_t, const vec3_t);
 static vecS_t matSM_vecM_multiply(const matSM_t, const vecM_t);
 static mat33_t mat33_mat33_multiply(const mat33_t, const mat33_t);
@@ -262,6 +263,8 @@ static matSS_t matSS_transpose(const matSS_t);
 static matSM_t matMS_transpose(const matMS_t);
 static matMM_t matMM_invert(const matMM_t);
 static mat33_t SO3_plus_right(const mat33_t, const vec3_t);
+static mat33_t SO3_jacobian_plus_right_1(const mat33_t, const vec3_t);
+static mat33_t SO3_jacobian_plus_right_2(const mat33_t, const vec3_t);
 static cf_state_t state_plus_right(const cf_state_t, const vecS_t);
 
 static cf_state_t transition_model(const cf_state_t, const vec4_t);
@@ -359,15 +362,15 @@ static vec3_t vec3_scale(const vec3_t v, const float s)
   return result;
 }
 
-// // compute the addition of two 3x3 matrices
-// static mat33_t mat33_mat33_add(const mat33_t A, const mat33_t B)
-// {
-//   mat33_t C;
-//   for (int i = 0; i < 3; ++i)
-//     for (int j = 0; j < 3; ++j)
-//       C.m[i][j] = A.m[i][j] + B.m[i][j];
-//   return C;
-// }
+// compute the addition of two 3x3 matrices
+static mat33_t mat33_mat33_add(const mat33_t A, const mat33_t B)
+{
+  mat33_t C;
+  for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j)
+      C.m[i][j] = A.m[i][j] + B.m[i][j];
+  return C;
+}
 
 // compute the subtraction of two 3x3 matrices
 static mat33_t mat33_mat33_sub(const mat33_t A, const mat33_t B)
@@ -377,6 +380,16 @@ static mat33_t mat33_mat33_sub(const mat33_t A, const mat33_t B)
     for (int j = 0; j < 3; ++j)
       C.m[i][j] = A.m[i][j] - B.m[i][j];
   return C;
+}
+
+// compute the scaling of a 3d matrix with a float value
+static mat33_t mat33_scale(const mat33_t A, const float s)
+{
+  mat33_t B;
+  for (int i = 0; i < SIZE3; ++i)
+    for (int j = 0; j < SIZE3; ++j)
+      B.m[i][j] = s * A.m[i][j];
+  return B;
 }
 
 // compute the product A * b, where A is a 3x3 matrix and b is a 3x1 column vector
@@ -636,6 +649,45 @@ static mat33_t SO3_plus_right(const mat33_t R, const vec3_t tau)
   return R_plus;
 }
 
+// jacobian right plus operation w.r.t the first element
+static mat33_t SO3_jacobian_plus_right_1(const mat33_t R, const vec3_t tau)
+{
+  mat33_t I_eye = {{{0.0f}}};
+  I_eye.m[0][0] = 1.0f;
+  I_eye.m[1][1] = 1.0f;
+  I_eye.m[2][2] = 1.0f;
+  float theta = sqrtf(tau.x * tau.x + tau.y * tau.y + tau.z * tau.z);
+  vec3_t u = {{0.0f}};
+  if (fabs(theta) < tol)
+  {
+    theta = 0.0f;
+    u.z = 1.0f;
+  }
+  u = vec3_scale(tau, theta);
+  mat33_t u_hat = vec3_hat(u);
+  mat33_t result = mat33_mat33_add(I_eye, mat33_mat33_add(mat33_scale(u_hat, sinf(theta)), mat33_scale(mat33_mat33_multiply(u_hat, u_hat), (1.0f - cosf(theta)))));
+  return mat33_transpose(result);
+}
+
+// jacobian right plus operation w.r.t. the second element
+static mat33_t SO3_jacobian_plus_right_2(const mat33_t R, const vec3_t tau)
+{
+  mat33_t I_eye = {{{0.0f}}};
+  I_eye.m[0][0] = 1.0f;
+  I_eye.m[1][1] = 1.0f;
+  I_eye.m[2][2] = 1.0f;
+  float theta = sqrtf(tau.x * tau.x + tau.y * tau.y + tau.z * tau.z);
+  vec3_t u = {{0.0f}};
+  if (fabs(theta) < tol)
+  {
+    return I_eye;
+  }
+  u = vec3_scale(tau, theta);
+  mat33_t u_hat = vec3_hat(u);
+  mat33_t result = mat33_mat33_add(I_eye, mat33_mat33_add(mat33_scale(u_hat, (cosf(theta) - 1.0f) / theta), mat33_scale(mat33_mat33_multiply(u_hat, u_hat), (theta - sinf(theta)) / theta)));
+  return result;
+}
+
 // right plus operation for the state of the crazyflie (state + vector)
 static cf_state_t state_plus_right(const cf_state_t s, const vecS_t ds)
 {
@@ -729,6 +781,8 @@ static matSS_t transition_jacobian(const cf_state_t x, const vec4_t u)
   mat33_t Iob_hat = vec3_hat(mat33_vec3_multiply(I_cf, ob));
   mat33_t ob_hat_times_I = mat33_mat33_multiply(ob_hat, I_cf);
   mat33_t dobdot_over_ob = mat33_mat33_multiply(I_inv_cf, mat33_mat33_sub(Iob_hat, ob_hat_times_I));
+  mat33_t dRwbnex_over_Rwb = SO3_jacobian_plus_right_1(Rwb, ob);
+  mat33_t dRwbnex_over_ob = SO3_jacobian_plus_right_2(Rwb, ob);
 
   // F[0:3][3:6]
   for (int i = 0; i < SIZE3; i++)
@@ -740,18 +794,15 @@ static matSS_t transition_jacobian(const cf_state_t x, const vec4_t u)
     for (int j = 2 * SIZE3; j < 3 * SIZE3; j++)
       F.m[i][j] = Rwb.m[i][j];
 
-  // # A[3:6, 3:6] = SO3.jacobian_rotation_action_1(Rwb, omegab)
-  // # A[3:6, 9:12] = SO3.jacobian_rotation_action_2(Rwb, omegab)
+  // F[3:6][3:6]
+  for (int i = SIZE3; i < 2 * SIZE3; i++)
+    for (int j = SIZE3; j < 2 * SIZE3; j++)
+      F.m[i][j] = dRwbnex_over_Rwb.m[i][j];
 
-  // // F[3:6][3:6]
-  // for (int i = SIZE3; i < 2 * SIZE3; i++)
-  //   for (int j = SIZE3; j < 2 * SIZE3; j++)
-  //     F.m[i][j] = dvbdot_over_dRwb.m[i][j];
-
-  // // F[3:6][9:12]
-  // for (int i = SIZE3; i < 2 * SIZE3; i++)
-  //   for (int j = 3 * SIZE3; j < 4 * SIZE3; j++)
-  //     F.m[i][j] = dvbdot_over_dRwb.m[i][j];
+  // F[3:6][9:12]
+  for (int i = SIZE3; i < 2 * SIZE3; i++)
+    for (int j = 3 * SIZE3; j < 4 * SIZE3; j++)
+      F.m[i][j] = dRwbnex_over_ob.m[i][j];
 
   // F[6:9][3:6]
   for (int i = 2 * SIZE3; i < 3 * SIZE3; i++)
