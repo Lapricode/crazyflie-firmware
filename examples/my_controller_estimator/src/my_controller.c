@@ -147,29 +147,31 @@ static unsigned int debug_print_counter = 0; // a counter for debug printing rat
 
 // define some crazyflie model parameters
 // Quadrotor system:
-// state:      x = [rw, qwb, vb, omegab] \in R^(13x1)
-//             where   rw \in R^(3x1) is the position in the world frame
-//                     qwb \in R^(4x1) is the orientation quaternion of the body frame w.r.t. the world frame
-//                     vb \in R^(3x1) is the linear velocity in the body frame
-//                     omegab \in R^(3x1) is the angular velocity in the body frame
+// state:      x = [rw, Rwb, vb, omegab] that has dimension 12 (from a Lie Theory point of view)
+//             where:   rw \in R^(3x1) is the position in the world frame
+//                      Rwb \in R^(3x3) is the rotation matrix of the body frame w.r.t. the world frame
+//                      vb \in R^(3x1) is the linear velocity in the body frame
+//                      omegab \in R^(3x1) is the angular velocity in the body frame
+//                      qwb \in R^(4x1) is the orientation quaternion of the body frame w.r.t. the world frame
 // control:    u = [u1, u2, u3, u4] \in R^(4x1)
-//             where u_i is the angular speed of the i-th motor in rad/s
-// rotors:     Fi = Kf * ui^2
-//             Ti = Kt * ui^2
-//             where   Fi is the thrust force produced by the ith rotor
-//                     Ti is the torque produced by the ith rotor
+//             where: ui is the angular speed of the i-th motor in rad/s
+//                    ui is the thrust force produced by the i-th rotor in N
+// rotors:     Fi = Kf * wi^2
+//             Ti = Kt * wi^2
+//             where:   Fi is the thrust force (in N) produced by the i-th rotor
+//                      Ti is the torque (in Nm) produced by the i-th rotor
+//                      wi is the angular speed (in rad/sec) produced by the i-th rotor
 //             the motors are numbered in a clockwise manner, with motor 4 being in xy direction
 //             the rotors 1, 3 rotate counter-clockwise, and the rotors 2, 4 rotate clockwise
 //             the motor arms form right angles (90 degrees) with each other
-// note:   the state x comes with the quaternion qwb of the rotation matrix Rwb,
-//         but we use the rotation matrix Rwb directly for the dynamics and the jacobians calculations
+// note:   we use the rotation matrix Rwb directly for the dynamics and the jacobians calculations
 //         Rwb \in R^(3x3) is the rotation matrix of the body frame w.r.t. the world frame
 //         Rwb \in R^(3x3) has dimension 3
 static const float g = 9.81f;                              // gravity's acceleration (in m/sec^2)
 static const float m_cf = 0.033f;                          // mass (in kg)
-static const float l = 0.046f;                             // arm length (in m)
+static const float l_cf = 0.046f;                          // arm length (in m)
 static const float body_yaw0 = -3.0f / 4.0f * (float)M_PI; // assuming body_yaw0 is for the motor 1 at positive y direction, motor 2 at positive x direction and clockwise motor numbers
-// static const mat33_t CRAZYFLIE_INERTIA =
+// static const mat33_t I_cf =
 //     {{{16.6e-6f, 0.83e-6f, 0.72e-6f},
 //       {0.83e-6f, 16.6e-6f, 1.8e-6f},
 //       {0.72e-6f, 1.8e-6f, 29.3e-6f}}};
@@ -687,8 +689,8 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
       {
         control_thrust_total += control_thrusts.v[i];
       }
-      const float cos_comp = l * kf * cosf(body_yaw0);
-      const float sin_comp = l * kf * sinf(body_yaw0);
+      const float cos_comp = l_cf * kf * cosf(body_yaw0);
+      const float sin_comp = l_cf * kf * sinf(body_yaw0);
       control_body_torques.x = cos_comp * (powf(control_speeds.v1, 2.0f) - powf(control_speeds.v3, 2.0f)) - sin_comp * (powf(control_speeds.v4, 2.0f) - powf(control_speeds.v2, 2.0f));
       control_body_torques.y = sin_comp * (powf(control_speeds.v1, 2.0f) - powf(control_speeds.v3, 2.0f)) + cos_comp * (powf(control_speeds.v4, 2.0f) - powf(control_speeds.v2, 2.0f));
       control_body_torques.z = kt * (powf(control_speeds.v2, 2.0f) + powf(control_speeds.v4, 2.0f) - powf(control_speeds.v1, 2.0f) - powf(control_speeds.v3, 2.0f));

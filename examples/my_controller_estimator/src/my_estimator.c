@@ -162,40 +162,48 @@ typedef struct matMS_s
 // define some logging variables
 static unsigned int debug_print_counter = 0; // a counter for debug printing rate
 
-// // define some crazyflie model parameters
-// // Quadrotor system:
-// // state:      x = [rw, qwb, vb, omegab] \in R^(13x1)
-// //             where   rw \in R^(3x1) is the position in the world frame
-// //                     qwb \in R^(4x1) is the orientation quaternion of the body frame w.r.t. the world frame
-// //                     vb \in R^(3x1) is the linear velocity in the body frame
-// //                     omegab \in R^(3x1) is the angular velocity in the body frame
-// // control:    u = [u1, u2, u3, u4] \in R^(4x1)
-// //             where u_i is the angular speed of the i-th motor in rad/s
-// // rotors:     Fi = Kf * ui^2
-// //             Ti = Kt * ui^2
-// //             where   Fi is the thrust force produced by the ith rotor
-// //                     Ti is the torque produced by the ith rotor
-// //             the motors are numbered in a clockwise manner, with motor 4 being in xy direction
-// //             the rotors 1, 3 rotate counter-clockwise, and the rotors 2, 4 rotate clockwise
-// //             the motor arms form right angles (90 degrees) with each other
-// // note:   the state x comes with the quaternion qwb of the rotation matrix Rwb,
-// //         but we use the rotation matrix Rwb directly for the dynamics and the jacobians calculations
-// //         Rwb \in R^(3x3) is the rotation matrix of the body frame w.r.t. the world frame
-// //         Rwb \in R^(3x3) has dimension 3
-// static const float g = 9.81f;                              // gravity's acceleration (in m/sec^2)
-// static const float m_cf = 0.033f;                          // mass (in kg)
-// static const float l = 0.046f;                             // arm length (in m)
-// static const float body_yaw0 = -3.0f / 4.0f * (float)M_PI; // assuming body_yaw0 is for the motor 1 at positive y direction, motor 2 at positive x direction and clockwise motor numbers
-// // static const mat33_t CRAZYFLIE_INERTIA =
-// //     {{{16.6e-6f, 0.83e-6f, 0.72e-6f},
-// //       {0.83e-6f, 16.6e-6f, 1.8e-6f},
-// //       {0.72e-6f, 1.8e-6f, 29.3e-6f}}};
-// static const float kf = 2.25e-08f; // the coefficient parameter of the square model: thrust (N) vs. rotor_speed (rad/sec), for a single motor
-// static const float kt = 1.34e-10f; // the coefficient parameter of the square model: torque (N*m) vs. rotor_speed (rad/sec), for a single motor, kt = 0.00596 * kf
+// define some crazyflie model parameters
+// Quadrotor system:
+// state:      x = [rw, Rwb, vb, omegab] that has dimension 12 (from a Lie Theory point of view)
+//             where:   rw \in R^(3x1) is the position in the world frame
+//                      Rwb \in R^(3x3) is the rotation matrix of the body frame w.r.t. the world frame
+//                      vb \in R^(3x1) is the linear velocity in the body frame
+//                      omegab \in R^(3x1) is the angular velocity in the body frame
+//                      qwb \in R^(4x1) is the orientation quaternion of the body frame w.r.t. the world frame
+// control:    u = [u1, u2, u3, u4] \in R^(4x1)
+//             where: ui is the angular speed of the i-th motor in rad/s
+//                    ui is the thrust force produced by the i-th rotor in N
+// rotors:     Fi = Kf * wi^2
+//             Ti = Kt * wi^2
+//             where:   Fi is the thrust force (in N) produced by the i-th rotor
+//                      Ti is the torque (in Nm) produced by the i-th rotor
+//                      wi is the angular speed (in rad/sec) produced by the i-th rotor
+//             the motors are numbered in a clockwise manner, with motor 4 being in xy direction
+//             the rotors 1, 3 rotate counter-clockwise, and the rotors 2, 4 rotate clockwise
+//             the motor arms form right angles (90 degrees) with each other
+// note:   we use the rotation matrix Rwb directly for the dynamics and the jacobians calculations
+//         Rwb \in R^(3x3) is the rotation matrix of the body frame w.r.t. the world frame
+//         Rwb \in R^(3x3) has dimension 3
+static const float g = 9.81f;                              // gravity's acceleration (in m/sec^2)
+static const float m_cf = 0.033f;                          // mass (in kg)
+static const float l_cf = 0.046f;                          // arm length (in m)
+static const float body_yaw0 = -3.0f / 4.0f * (float)M_PI; // assuming body_yaw0 is for the motor 1 at positive y direction, motor 2 at positive x direction and clockwise motor numbers
+static const mat33_t I_cf =
+    {{{16.6e-6f, 0.83e-6f, 0.72e-6f},
+      {0.83e-6f, 16.6e-6f, 1.8e-6f},
+      {0.72e-6f, 1.8e-6f, 29.3e-6f}}}; // the crazyflie's moment of inertia
+static const mat33_t I_inv_cf =
+    {{{1.0f / 16.6e-6f, 0.0f, 0.0f},
+      {0.0f, 1.0f / 16.6e-6f, 0.0f},
+      {0.0f, 0.0f, 1.0f / 29.3e-6f}}}; // the crazyflie's inverted moment of inertia
+static const float kf = 2.25e-08f;     // the coefficient parameter of the square model: thrust (N) vs. rotor_speed (rad/sec), for a single motor
+static const float kt = 1.34e-10f;     // the coefficient parameter of the square model: torque (N*m) vs. rotor_speed (rad/sec), for a single motor, kt = 0.00596 * kf
 
 // define variables and parameters for the Extended Kalman Filter (EKF)
 static const uint32_t predict_rate = RATE_100_HZ;
-static const float prediction_update_interval_ms = 1000.0f / (float)predict_rate;
+static const float prediction_update_interval_sec = 1.0f / (float)predict_rate;
+static const float dt = prediction_update_interval_sec;
+static vec3_t vb_prev = {{0.0f}};
 static matSS_t Q = {
     // process noise covariance
     {
@@ -232,11 +240,17 @@ static const float min_covariance = 1e-6f;  // minimum allowed covariance
 // functions definitions
 // static void kalman_predict(kalmanCoreData_t *this);
 // static void kalman_update(kalmanCoreData_t *this);
-// static float clamp_value(float, float, float);
+static float clamp_value(float, float, float);
 static mat33_t Rq_mat(quat_t);
+static mat33_t vec3_hat(const vec3_t);
+static vec3_t vec3_vec3_cross(const vec3_t, const vec3_t);
+static vec3_t vec3_vec3_add(const vec3_t, const vec3_t);
+static vec3_t vec3_vec3_sub(const vec3_t, const vec3_t);
+static vec3_t vec3_scale(const vec3_t, const float);
+static mat33_t mat33_mat33_add(const mat33_t, const mat33_t);
+static mat33_t mat33_mat33_sub(const mat33_t, const mat33_t);
 static vec3_t mat33_vec3_multiply(const mat33_t, const vec3_t);
 static vecS_t matSM_vecM_multiply(const matSM_t, const vecM_t);
-// static vecM_t matMS_vecS_multiply(const matMS_t, const vecS_t);
 static mat33_t mat33_mat33_multiply(const mat33_t, const mat33_t);
 static matSS_t matSS_matSS_multiply(const matSS_t, const matSS_t);
 static matSM_t matSS_matSM_multiply(const matSS_t, const matSM_t);
@@ -260,15 +274,15 @@ static matSM_t update_kalman_gain(const matSS_t, const matMS_t);
 static cf_state_t update_state(const cf_state_t, const matSM_t, const vecM_t);
 static matSS_t update_covariance(const matSS_t, const matSM_t, const matMS_t);
 
-// // clamp a float value betweeen two limit values
-// float clamp_value(float value, float min_lim, float max_lim)
-// {
-//   if (value < min_lim)
-//     return min_lim;
-//   if (value > max_lim)
-//     return max_lim;
-//   return value;
-// }
+// clamp a float value betweeen two limit values
+float clamp_value(float value, float min_lim, float max_lim)
+{
+  if (value < min_lim)
+    return min_lim;
+  if (value > max_lim)
+    return max_lim;
+  return value;
+}
 
 // convert a quaternion to the corresponding rotation matrix
 // there is also the function "struct mat33 quat2rotmat(struct quat q)"" of "math3d.h"
@@ -290,6 +304,79 @@ mat33_t Rq_mat(quat_t q) // q is the quaternion
   R.m[2][2] = w * w - x * x - y * y + z * z;
 
   return R;
+}
+
+// compute the skew symmetric hat matrix that corresponds to the given vector
+static mat33_t vec3_hat(const vec3_t v)
+{
+  mat33_t v_hat = {{{0.0f}}};
+  v_hat.m[0][1] = -v.z;
+  v_hat.m[0][2] = v.y;
+  v_hat.m[1][0] = v.z;
+  v_hat.m[1][2] = -v.x;
+  v_hat.m[2][0] = -v.y;
+  v_hat.m[2][1] = v.x;
+  return v_hat;
+}
+
+// compute the cross producct of two 3d vectors
+static vec3_t vec3_vec3_cross(const vec3_t a, const vec3_t b)
+{
+  vec3_t result;
+  result.x = a.y * b.z - a.z * b.y;
+  result.y = a.z * b.x - a.x * b.z;
+  result.z = a.x * b.y - a.y * b.x;
+  return result;
+}
+
+// compute the addition of two 3d vectors
+static vec3_t vec3_vec3_add(const vec3_t a, const vec3_t b)
+{
+  vec3_t result;
+  result.x = a.x + b.x;
+  result.y = a.y + b.y;
+  result.z = a.z + b.z;
+  return result;
+}
+
+// compute the subtraction of two 3d vectors
+static vec3_t vec3_vec3_sub(const vec3_t a, const vec3_t b)
+{
+  vec3_t result;
+  result.x = a.x - b.x;
+  result.y = a.y - b.y;
+  result.z = a.z - b.z;
+  return result;
+}
+
+// compute the scaling of a 3d vector with a float value
+static vec3_t vec3_scale(const vec3_t v, const float s)
+{
+  vec3_t result;
+  result.x = v.x * s;
+  result.y = v.y * s;
+  result.z = v.z * s;
+  return result;
+}
+
+// compute the addition of two 3x3 matrices
+static mat33_t mat33_mat33_add(const mat33_t A, const mat33_t B)
+{
+  mat33_t C;
+  for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j)
+      C.m[i][j] = A.m[i][j] + B.m[i][j];
+  return C;
+}
+
+// compute the subtraction of two 3x3 matrices
+static mat33_t mat33_mat33_sub(const mat33_t A, const mat33_t B)
+{
+  mat33_t C;
+  for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j)
+      C.m[i][j] = A.m[i][j] - B.m[i][j];
+  return C;
 }
 
 // compute the product A * b, where A is a 3x3 matrix and b is a 3x1 column vector
@@ -315,20 +402,6 @@ static vecS_t matSM_vecM_multiply(const matSM_t A, const vecM_t b)
   }
   return result;
 }
-
-// // matMS * vecS -> vecM
-// static vecM_t matMS_vecS_multiply(const matMS_t A, const vecS_t b)
-// {
-//   vecM_t result;
-//   for (int i = 0; i < MEASURE_DIM; i++)
-//   {
-//     result.v[i] = A.m[i][0] * b.v[0] + A.m[i][1] * b.v[1] + A.m[i][2] * b.v[2] +
-//                   A.m[i][3] * b.v[3] + A.m[i][4] * b.v[4] + A.m[i][5] * b.v[5] +
-//                   A.m[i][6] * b.v[6] + A.m[i][7] * b.v[7] + A.m[i][8] * b.v[8] +
-//                   A.m[i][9] * b.v[9] + A.m[i][10] * b.v[10] + A.m[i][11] * b.v[11];
-//   }
-//   return result;
-// }
 
 // compute the product A * B, where A is a 3x3 matrix and B is a 3x3 matrix
 static mat33_t mat33_mat33_multiply(const mat33_t A, const mat33_t B)
@@ -551,16 +624,7 @@ static mat33_t SO3_plus_right(const mat33_t R, const vec3_t tau)
   }
 
   // compute R_exp = I + sin(theta)*u_hat + (1 - cos(theta))*u_hat^2
-  mat33_t u_hat;
-  u_hat.m[0][0] = 0.0;
-  u_hat.m[0][1] = -u.z;
-  u_hat.m[0][2] = u.y;
-  u_hat.m[1][0] = u.z;
-  u_hat.m[1][1] = 0.0;
-  u_hat.m[1][2] = -u.x;
-  u_hat.m[2][0] = -u.y;
-  u_hat.m[2][1] = u.x;
-  u_hat.m[2][2] = 0.0;
+  mat33_t u_hat = vec3_hat(u);
   mat33_t u_hat_squared = mat33_mat33_multiply(u_hat, u_hat);
   mat33_t R_exp;
   for (int i = 0; i < SIZE3; ++i)
@@ -573,33 +637,22 @@ static mat33_t SO3_plus_right(const mat33_t R, const vec3_t tau)
 }
 
 // right plus operation for the state of the crazyflie (state + vector)
-static cf_state_t state_plus_right(const cf_state_t x, const vecS_t ds)
+static cf_state_t state_plus_right(const cf_state_t s, const vecS_t ds)
 {
-  vec3_t rw = x.rw;
-  mat33_t Rwb = x.Rwb;
-  vec3_t vb = x.vb;
-  vec3_t ob = x.ob;
+  vec3_t rw = s.rw;
+  mat33_t Rwb = s.Rwb;
+  vec3_t vb = s.vb;
+  vec3_t ob = s.ob;
 
-  vec3_t rw_sum;
-  for (int i = 0; i < SIZE3; i++)
-  {
-    rw_sum.v[i] = rw.v[i] + ds.v[i];
-  }
+  vec3_t drw = {{ds.v[0], ds.v[1], ds.v[2]}};
+  vec3_t dRwb = {{ds.v[SIZE3], ds.v[SIZE3 + 1], ds.v[SIZE3 + 2]}};
+  vec3_t dvb = {{ds.v[2 * SIZE3], ds.v[2 * SIZE3 + 1], ds.v[2 * SIZE3 + 2]}};
+  vec3_t dob = {{ds.v[3 * SIZE3], ds.v[3 * SIZE3 + 1], ds.v[3 * SIZE3 + 2]}};
 
-  vec3_t ds_Rwb = {{ds.v[SIZE3], ds.v[SIZE3 + 1], ds.v[SIZE3 + 2]}};
-  mat33_t Rwb_sum = SO3_plus_right(Rwb, ds_Rwb);
-
-  vec3_t vb_sum;
-  for (int i = 0; i < SIZE3; i++)
-  {
-    vb_sum.v[i] = vb.v[i] + ds.v[2 * SIZE3 + i];
-  }
-
-  vec3_t ob_sum;
-  for (int i = 0; i < SIZE3; i++)
-  {
-    ob_sum.v[i] = ob.v[i] + ds.v[3 * SIZE3 + i];
-  }
+  vec3_t rw_sum = vec3_vec3_add(rw, drw);
+  mat33_t Rwb_sum = SO3_plus_right(Rwb, dRwb);
+  vec3_t vb_sum = vec3_vec3_add(vb, dvb);
+  vec3_t ob_sum = vec3_vec3_add(ob, dob);
 
   cf_state_t state_plus = {
       .rw = rw_sum,
@@ -615,34 +668,138 @@ static cf_state_t state_plus_right(const cf_state_t x, const vecS_t ds)
 static cf_state_t transition_model(const cf_state_t x, const vec4_t u)
 {
   // vec3_t rw = x.rw;
-  // mat33_t Rwb = x.Rwb;
-  // vec3_t vb = x.vb;
-  // vec3_t ob = x.ob;
+  mat33_t Rwb = x.Rwb;
+  vec3_t vb = x.vb;
+  vec3_t ob = x.ob;
 
-  cf_state_t x_next = x;
+  // compute rw_dot
+  vec3_t rw_dot = mat33_vec3_multiply(Rwb, vb);
+
+  // compute vb_dot
+  vec3_t gw = {{0.0f, 0.0f, -m_cf * g}};
+  vec3_t gb = mat33_vec3_multiply(mat33_transpose(Rwb), gw);
+  vec3_t thrust_b = {{0.0f, 0.0f, u.v[0] + u.v[1] + u.v[2] + u.v[3]}};
+  vec3_t Fb = vec3_vec3_add(gb, thrust_b);
+  vec3_t ob_cross_vb = vec3_vec3_cross(ob, vb);
+  vec3_t vb_dot = vec3_vec3_sub(vec3_scale(Fb, 1.0f / m_cf), ob_cross_vb);
+
+  // compute ob_dot
+  float T13 = l_cf * (u.v[0] - u.v[2]);
+  float T42 = l_cf * (u.v[3] - u.v[1]);
+  vec3_t Tb = {{
+      T13 * cosf(body_yaw0) - T42 * sinf(body_yaw0),
+      T13 * sinf(body_yaw0) + T42 * cosf(body_yaw0),
+      (kt / kf) * (-u.v[0] - u.v[2] + u.v[1] + u.v[3]),
+  }};
+  vec3_t Iob = mat33_vec3_multiply(I_cf, ob);
+  vec3_t ob_cross_Iob = vec3_vec3_cross(ob, Iob);
+  vec3_t torque_term = vec3_vec3_sub(Tb, ob_cross_Iob);
+  vec3_t ob_dot = mat33_vec3_multiply(I_inv_cf, torque_term);
+
+  // build dx_times_dt vector of size STATE_DIM
+  vecS_t dx_times_dt;
+  vec3_t ob_dt = vec3_scale(ob, dt);
+  for (int i = 0; i < SIZE3; i++)
+  {
+    dx_times_dt.v[i] = rw_dot.v[i] * dt;
+    dx_times_dt.v[SIZE3 + i] = ob_dt.v[i] * dt;
+    dx_times_dt.v[2 * SIZE3 + i] = vb_dot.v[i] * dt;
+    dx_times_dt.v[3 * SIZE3 + +i] = ob_dot.v[i] * dt;
+  }
+
+  // compute the next state estimate
+  cf_state_t x_next = state_plus_right(x, dx_times_dt);
   return x_next;
 }
 
 static matSS_t transition_jacobian(const cf_state_t x, const vec4_t u)
 {
   // vec3_t rw = x.rw;
-  // mat33_t Rwb = x.Rwb;
-  // vec3_t vb = x.vb;
-  // vec3_t ob = x.ob;
+  mat33_t Rwb = x.Rwb;
+  vec3_t vb = x.vb;
+  vec3_t ob = x.ob;
 
   matSS_t F = {{{0.0f}}};
+
+  mat33_t vb_hat = vec3_hat(vb);
+  mat33_t ob_hat = vec3_hat(ob);
+  mat33_t drwdot_over_dRwb = mat33_mat33_multiply(Rwb, vb_hat);
+  vec3_t gw = {{0.0f, 0.0f, -g}};
+  mat33_t dvbdot_over_dRwb = mat33_mat33_multiply(mat33_transpose(Rwb), mat33_mat33_multiply(vec3_hat(gw), Rwb));
+  mat33_t Iob_hat = vec3_hat(mat33_vec3_multiply(I_cf, ob));
+  mat33_t ob_hat_times_I = mat33_mat33_multiply(ob_hat, I_cf);
+  mat33_t dobdot_over_ob = mat33_mat33_multiply(I_inv_cf, mat33_mat33_sub(Iob_hat, ob_hat_times_I));
+
+  // F[0:3][3:6]
+  for (int i = 0; i < SIZE3; i++)
+    for (int j = SIZE3; j < 2 * SIZE3; j++)
+      F.m[i][j] = drwdot_over_dRwb.m[i][j];
+
+  // F[0:3][6:9]
+  for (int i = 0; i < SIZE3; i++)
+    for (int j = 2 * SIZE3; j < 3 * SIZE3; j++)
+      F.m[i][j] = Rwb.m[i][j];
+
+  // # A[3:6, 3:6] = SO3.jacobian_rotation_action_1(Rwb, omegab)
+  // # A[3:6, 9:12] = SO3.jacobian_rotation_action_2(Rwb, omegab)
+
+  // // F[3:6][3:6]
+  // for (int i = SIZE3; i < 2 * SIZE3; i++)
+  //   for (int j = SIZE3; j < 2 * SIZE3; j++)
+  //     F.m[i][j] = dvbdot_over_dRwb.m[i][j];
+
+  // // F[3:6][9:12]
+  // for (int i = SIZE3; i < 2 * SIZE3; i++)
+  //   for (int j = 3 * SIZE3; j < 4 * SIZE3; j++)
+  //     F.m[i][j] = dvbdot_over_dRwb.m[i][j];
+
+  // F[6:9][3:6]
+  for (int i = 2 * SIZE3; i < 3 * SIZE3; i++)
+    for (int j = SIZE3; j < 2 * SIZE3; j++)
+      F.m[i][j] = dvbdot_over_dRwb.m[i][j];
+
+  // F[6:9][6:9]
+  for (int i = 2 * SIZE3; i < 3 * SIZE3; i++)
+    for (int j = 2 * SIZE3; j < 3 * SIZE3; j++)
+      F.m[i][j] = -ob_hat.m[i][j];
+
+  // F[6:9][9:12]
+  for (int i = 2 * SIZE3; i < 3 * SIZE3; i++)
+    for (int j = 3 * SIZE3; j < 4 * SIZE3; j++)
+      F.m[i][j] = vb_hat.m[i][j];
+
+  // F[9:12][9:12]
+  for (int i = 3 * SIZE3; i < 4 * SIZE3; i++)
+    for (int j = 3 * SIZE3; j < 4 * SIZE3; j++)
+      F.m[i][j] = dobdot_over_ob.m[i][j];
+
   return F;
 }
 
 // the observation model, the crazyflie measurements
 static vecM_t observation_model(const cf_state_t x)
 {
-  // vec3_t rw = x.rw;
+  vec3_t rw = x.rw;
   // mat33_t Rwb = x.Rwb;
-  // vec3_t vb = x.vb;
-  // vec3_t ob = x.ob;
+  vec3_t vb = x.vb;
+  vec3_t ob = x.ob;
+
+  vec3_t ab = {{0.0f}};
+  for (int i = 0; i < SIZE3; i++)
+  {
+    ab.v[i] = (vb.v[i] - vb_prev.v[i]) / dt;
+  }
+  vb_prev.x = vb.x;
+  vb_prev.y = vb.y;
+  vb_prev.z = vb.z;
 
   vecM_t h = {{0.0f}};
+  for (int i = 0; i < SIZE3; i++)
+  {
+    h.v[i] = rw.v[i];
+    h.v[i + 3] = ob.v[i];
+    h.v[i + 6] = ab.v[i];
+  }
   return h;
 }
 
@@ -654,6 +811,12 @@ static matMS_t observation_jacobian(const cf_state_t x)
   // vec3_t ob = x.ob;
 
   matMS_t H = {{{0.0f}}};
+  for (int i = 0; i < SIZE3; i++)
+  {
+    H.m[i][i] = 1.0f;
+    H.m[SIZE3 + i][STATE_DIM - SIZE3 + i] = 1.0f;
+    H.m[MEASURE_DIM - SIZE3 + i][2 * SIZE3 + i] = 1.0f / dt;
+  }
   return H;
 }
 
@@ -673,6 +836,7 @@ static matSS_t predict_covariance(const matSS_t P_kpr_kpr, const matSS_t F_k)
     for (int j = 0; j < STATE_DIM; j++)
     {
       P_k_kpr.m[i][j] = temp.m[i][j] + Q.m[i][j];
+      P_k_kpr.m[i][j] = clamp_value(P_k_kpr.m[i][j], min_covariance, max_covariance);
     }
   }
   return P_k_kpr;
@@ -723,6 +887,9 @@ static matSS_t update_covariance(const matSS_t P_k_kpr, const matSM_t K_k, const
     }
   }
   matSS_t P_k_k = matSS_matSS_multiply(temp2, P_k_kpr);
+  for (int i = 0; i < STATE_DIM; i++)
+    for (int j = 0; j < STATE_DIM; j++)
+      P_k_k.m[i][j] = clamp_value(P_k_k.m[i][j], min_covariance, max_covariance);
   return P_k_k;
 }
 
@@ -758,10 +925,10 @@ void estimatorOutOfTree(state_t *state, const stabilizerStep_t tick)
   };
 
   // get the current control input
-  vec4_t u_kpr;
+  vec4_t u_kpr = {{0.0f}};
 
   // get the current measurements
-  vecM_t z_k;
+  vecM_t z_k = {{0.0f}};
 
   // predict estimate
   cf_state_t x_k_kpr = predict_state(x_kpr_kpr, u_kpr);
@@ -773,6 +940,8 @@ void estimatorOutOfTree(state_t *state, const stabilizerStep_t tick)
   matSM_t K_k = update_kalman_gain(P, H_k);
   cf_state_t x_k_k = update_state(x_k_k, K_k, z_k);
   P = update_covariance(P, K_k, H_k);
+
+  // bool quadIsFlying = supervisorIsFlying();
 
   // print some data for debugging
   if (RATE_DO_EXECUTE(1, debug_print_counter))
