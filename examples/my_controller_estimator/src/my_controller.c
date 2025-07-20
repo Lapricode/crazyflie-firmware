@@ -171,6 +171,27 @@ static const float kt = 1.34e-10f; // the coefficient parameter of the square mo
 static float Kinf[4][12] = {{0.0f}}; // initialize the LQR controller's Kinf matrix
 static unsigned int Kinf_choice = 0; // parameter for the choice of the LQR controller's Kinf matrix
 // the default Kinf constant LQR controller's matrix
+// static const float Kinf_default[4][12] = {
+//     {-1.95735086e-02f, 1.56396351e-02f, 2.84411512e-01f, -8.72092347e-02f, -1.09199072e-01f, -1.11927317e-01f, -2.85184121e-02f, 2.27838048e-02f, 2.91126606e-01f, -1.60881220e-02f, -2.01556955e-02f, -1.12611490e-01f},
+//     {1.83476168e-02f, 9.15738253e-03f, 2.84411512e-01f, -5.09942802e-02f, 1.02364745e-01f, 1.11001203e-01f, 2.67326348e-02f, 1.33356841e-02f, 2.91126606e-01f, -9.39330745e-03f, 1.88952170e-02f, 1.11678989e-01f},
+//     {6.42730717e-03f, -1.03836440e-02f, 2.84411512e-01f, 5.78306154e-02f, 3.57187053e-02f, -1.08670124e-01f, 9.35488598e-03f, -1.51219963e-02f, 2.91126606e-01f, 1.06541458e-02f, 6.56469451e-03f, -1.09332019e-01f},
+//     {-5.20141542e-03f, -1.44133736e-02f, 2.84411512e-01f, 8.03728995e-02f, -2.88843781e-02f, 1.09596238e-01f, -7.56910867e-03f, -2.09974926e-02f, 2.91126606e-01f, 1.48272836e-02f, -5.30421594e-03f, 1.10264521e-01f}};
+// good
+// static const float Kinf_default[4][12] = {
+//     {-1.99420103e-02f, 1.57931844e-02f, 3.69101839e-01f, -8.80439216e-02f, -1.11202295e-01f, -1.17492620e-01f, -2.90516608e-02f, 2.30059996e-02f, 3.75420648e-01f, -1.62377284e-02f, -2.05147503e-02f, -1.18149355e-01f},
+//     {1.87088023e-02f, 9.02202143e-03f, 3.69101839e-01f, -5.02583888e-02f, 1.04328215e-01f, 1.16487913e-01f, 2.72552978e-02f, 1.31398028e-02f, 3.75420648e-01f, -9.26140430e-03f, 1.92471478e-02f, 1.17138650e-01f},
+//     {6.09419392e-03f, -1.02554339e-02f, 3.69101839e-01f, 5.71335790e-02f, 3.39077454e-02f, -1.13967399e-01f, 8.87283818e-03f, -1.49364616e-02f, 3.75420648e-01f, 1.05292058e-02f, 6.24009373e-03f, -1.14603183e-01f},
+//     {-4.86098591e-03f, -1.45597719e-02f, 3.69101839e-01f, 8.11687313e-02f, -2.70336658e-02f, 1.14972106e-01f, -7.07647524e-03f, -2.12093408e-02f, 3.75420648e-01f, 1.49699269e-02f, -4.97249122e-03f, 1.15613889e-01f}};
+// static const float Kinf_default[4][12] = {
+//     {-6.38768497e-02f, 5.01140582e-02f, 2.10048042e+00f, -1.11844319e-01f, -1.42565245e-01f, -1.23555235e-01f, -4.72697472e-02f, 3.70845384e-02f, 6.79403407e-01f, -1.63990702e-02f, -2.09043099e-02f, -1.24182048e-01f},
+//     {5.99804847e-02f, 2.78651305e-02f, 2.10048042e+00f, -6.21826428e-02f, 1.33869503e-01f, 1.22464605e-01f, 4.43864466e-02f, 2.06193713e-02f, 6.79403407e-01f, -9.11643704e-03f, 1.96293281e-02f, 1.23085845e-01f},
+//     {1.79944149e-02f, -3.17615667e-02f, 2.10048042e+00f, 7.08785383e-02f, 4.01481881e-02f, -1.19737070e-01f, 1.33143303e-02f, -2.35027239e-02f, 6.79403407e-01f, 1.03914406e-02f, 5.88486679e-03f, -1.20344383e-01f},
+//     {-1.40980499e-02f, -4.62176220e-02f, 2.10048042e+00f, 1.03148423e-01f, -3.14524464e-02f, 1.20827701e-01f, -1.04310297e-02f, -3.42011857e-02f, 6.79403407e-01f, 1.51240667e-02f, -4.60988505e-03f, 1.21440586e-01f}};
+// static const float Kinf_default[4][12] = {
+//     {-1.44566548e-02f, 1.13351494e-02f, 6.71394476e-01f, -7.64648717e-02f, -9.75232009e-02f, -8.77596982e-02f, -2.22084966e-02f, 1.74131374e-02f, 6.76245721e-01f, -1.64089291e-02f, -2.09282071e-02f, -1.24553203e-01f},
+//     {1.35755974e-02f, 6.29184045e-03f, 6.71394476e-01f, -4.24420676e-02f, 9.15797811e-02f, 8.69836639e-02f, 2.08550122e-02f, 9.66546785e-03f, 6.76245721e-01f, -9.10747109e-03f, 1.96527908e-02f, 1.23451800e-01f},
+//     {4.05091027e-03f, -7.17290597e-03f, 6.71394476e-01f, 4.83855409e-02f, 2.73239767e-02f, -8.50432304e-02f, 6.22285708e-03f, -1.10189646e-02f, 6.76245721e-01f, 1.03828986e-02f, 5.86294284e-03f, -1.20697801e-01f},
+//     {-3.16985286e-03f, -1.04540839e-02f, 6.71394476e-01f, 7.05213984e-02f, -2.13805569e-02f, 8.58192646e-02f, -4.86937267e-03f, -1.60596406e-02f, 6.76245721e-01f, 1.51335016e-02f, -4.58752655e-03f, 1.21799205e-01f}};
 static const float Kinf_default[4][12] = {
     {-4.34612169e+02f, 2.25644573e+02f, 1.07444819e+03f, -9.41655365e+02f, -1.20221510e+03f, -8.49498402e+02f, -3.56292177e+02f, 2.43187738e+02f, 7.49740794e+02f, -1.74737382e+02f, -1.98468534e+02f, -6.25310833e+02f},
     {4.04150916e+02f, 1.71361278e+02f, 1.07444819e+03f, -7.09858035e+02f, 1.11832284e+03f, 8.47710105e+02f, 3.31365009e+02f, 1.84191075e+02f, 7.49740794e+02f, -1.30593138e+02f, 1.84689421e+02f, 6.23855890e+02f},
@@ -221,7 +242,9 @@ static vec_4_t hover_speeds;                                              // the
 static float hover_adjust = 0.0f;                                         // adjust hover speeds for hover calibration
 static vec_4_t control_speeds = {{0.0f, 0.0f, 0.0f, 0.0f}};               // the controlled angular speeds (in rad/sec) of the 4 rotors
 static float max_control_speed = 25000.0f * (2.0f * (float)M_PI / 60.0f); // the maximum angular speed (in rad/sec) of a rotor, approximately 2618.0f rad/sec
+static vec_4_t hover_thrusts;                                             // the angular speeds (in rad/sec) of the 4 rotors, for the crazyflie to hover
 static vec_4_t control_thrusts = {{0.0f, 0.0f, 0.0f, 0.0f}};              // the controlled thrusts (in N) of the 4 rotors
+static const float max_control_thrust = 0.154f;                           // the maximum angular speed (in rad/sec) of a rotor, approximately 2618.0f rad/sec
 static unsigned int update_rate = RATE_HL_COMMANDER;                      // RATE_HL_COMMANDER;                      // the update rate of the control loop (100 Hz default rate)
 static bool do_norm_forces_control = true;                                // if true, then controlModeForce, else controlModeForceTorque
 
@@ -230,7 +253,6 @@ static float control_thrust_total = 0.0f;                   // the total thrust 
 static vec_3_t control_body_torques = {{0.0f, 0.0f, 0.0f}}; // the body torques for each axis (x, y, z)
 
 // for the normalized forces control mode (controlModeForce), do_norm_forces_control = true
-static const float max_thrust = 0.156f;                           // the maximum thrust (in N) generated by only 1 motor
 static vec_4_t control_norm_thrusts = {{0.0f, 0.0f, 0.0f, 0.0f}}; // the controlled normalized thrusts, in [0, 1], of the 4 rotors
 
 // functions definitions
@@ -507,6 +529,7 @@ void hover_control_init(void)
   for (int i = 0; i < 4; i++)
   {
     hover_speeds.v[i] = sqrtf(m_cf * g / 4.0f / kf) + hover_adjust; // approximately 1900.0f rad/sec
+    hover_thrusts.v[i] = m_cf * g / 4.0f;                           // approximately 0.081f N
   }
   return;
 }
@@ -617,6 +640,11 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
     mat412_vec12_multiply(Kinf, state_error, &control_feedback);
     for (int i = 0; i < 4; i++)
     {
+      // control_thrusts.v[i] = hover_thrusts.v[i] - control_feedback.v[i];
+      // if (control_thrusts.v[i] < 0.0f)
+      //   control_thrusts.v[i] = 0.0f;
+      // if (control_thrusts.v[i] > max_control_thrust)
+      //   control_thrusts.v[i] = max_control_thrust;
       control_speeds.v[i] = hover_speeds.v[i] - control_feedback.v[i];
       if (control_speeds.v[i] < 0.0f)
         control_speeds.v[i] = 0.0f;
@@ -664,7 +692,7 @@ void controllerOutOfTree(control_t *control, const setpoint_t *setpoint,
     {
       for (int i = 0; i < 4; i++)
       {
-        control_norm_thrusts.v[i] = clamp_to_unit_interval(control_thrusts.v[i] / max_thrust);
+        control_norm_thrusts.v[i] = clamp_to_unit_interval(control_thrusts.v[i] / max_control_thrust);
         control->normalizedForces[i] = control_norm_thrusts.v[i];
       }
       control->controlMode = controlModeForce;
